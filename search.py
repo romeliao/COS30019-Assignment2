@@ -2,7 +2,7 @@ import sys
 import heapq
 
 #Function to read file and parse input like nodes, edges, origin and destination.
-def prase_input(file_path):
+def parse_input(file_path):
     with open(file_path, 'r', encoding='utf-8') as f:
         lines = f.read().strip().split('\n')  # read file and split by new line
 
@@ -96,7 +96,7 @@ def main():
         return
     
     filename, method = sys.argv[1], sys.argv[2]
-    nodes, edges, origin, destinations = prase_input(filename)
+    nodes, edges, origin, destinations = parse_input(filename)
     
     result = gbfs(origin, destinations, edges, nodes)
     if result:
