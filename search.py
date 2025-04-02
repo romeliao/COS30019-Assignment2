@@ -1,5 +1,7 @@
 import sys
-from gbfs import gbfs  # Import gbfs and get_neighbors from gbfs.py
+from gbfs import gbfs
+from bfs import bfs, trace_path as trace_bfs_path
+from dfs import dfs, trace_path as trace_dfs_path
 
 def parse_input(file_path):
     with open(file_path, 'r', encoding='utf-8') as f:
@@ -59,20 +61,35 @@ def main():
         print("Usage: python search.py <filename> <method>")
         return
     
-    filename, method = sys.argv[1], sys.argv[2]
+    filename, method = sys.argv[1], sys.argv[2].upper()
     nodes, edges, origin, destinations = parse_input(filename)
     
-    result = gbfs(origin, destinations, edges, nodes)
-    # Inside the main function
-    if result:
-        goal, num_nodes, path = result
-        print(f"File: {filename}, Method: {method.upper()}")
-        print(f"Goal Node: {goal}, Nodes Explored: {num_nodes}")
+    goal, expanded, path = None, 0, None  # Initialize variables with default values
+
+    if method == "GBFS":
+        result = gbfs(origin, destinations, edges, nodes)
+        if result:
+            goal, expanded, path = result
+    elif method == "BFS":
+        result = bfs(origin, destinations, edges)
+        if result:
+            goal, expanded = result
+            path = trace_bfs_path(goal)
+    elif method == "DFS":
+        result = dfs(origin, destinations, edges)
+        if result:
+            goal, expanded = result
+            path = trace_dfs_path(goal)
+    else:
+        print(f"Unsupported method: {method}")
+        return
+
+    print(f"File: {filename}, Method: {method}")
+    if goal:
+        print(f"Goal Node: {goal}, Nodes Explored: {expanded}")
         print(f"Path: {' -> '.join(map(str, path)) if path else 'No path found.'}")
     else:
-        print(f"File: {filename}, Method: {method.upper()}")
         print("No solution found.")
 
-        
 if __name__ == "__main__":
     main()
