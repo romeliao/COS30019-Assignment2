@@ -4,55 +4,52 @@ from bfs import bfs, trace_path as trace_bfs_path
 from dfs import dfs, trace_path as trace_dfs_path
 
 def parse_input(file_path):
-    with open(file_path, 'r', encoding='utf-8') as f:
-        lines = f.read().strip().split('\n')
+    nodes = {}
+    edges = {}
+    origin = None
+    destination = []
 
-    nodes, edges, origin, destination = {}, {}, None, []
+    with open(file_path, 'r') as file:
+        lines = file.readlines()
+
     section = None
-
     for line in lines:
-        line = line.strip()
+        line = line.strip()  # Remove leading/trailing whitespace
+        if not line:  # Skip empty lines
+            continue
+
         if line.startswith("Nodes"):
             section = "nodes"
         elif line.startswith("Edges"):
             section = "edges"
         elif line.startswith("Origin"):
             section = "origin"
-        elif line.startswith("Destination"):
+        elif line.startswith("Destinations"):
             section = "destination"
-
         elif section == "nodes":
-            if not line or ": " not in line:
-                print(f"Skipping invalid node line (missing ': '): {line}")
-                continue
-            parts = line.split(": ")
             try:
-                node_id = int(parts[0])
-                coordinates = tuple(map(int, parts[1][1:-1].split(",")))
-                nodes[node_id] = coordinates
+                node_id, coords = line.split(": ")
+                x, y = map(int, coords.strip("()").split(","))
+                nodes[int(node_id)] = (x, y)
             except ValueError:
-                print(f"Skipping invalid node line (invalid node ID or coordinates): {line}")
-            except IndexError:
-                print(f"Skipping invalid node line (missing coordinates): {line}")
-
+                print(f"Skipping invalid node line: {line}")
         elif section == "edges":
-            parts = line.split(": ")
-            if len(parts) != 2 or not parts[0].startswith("(") or not parts[0].endswith(")"):
-                print(f"Skipping invalid edge line (missing or malformed edge format): {line}")
-                continue
             try:
-                edge = tuple(map(int, parts[0][1:-1].split(',')))
-                weight = int(parts[1])
-                edges[edge] = weight
-                edges[(edge[1], edge[0])] = weight
+                edge, cost = line.split(": ")
+                src, dst = map(int, edge.strip("()").split(","))
+                edges[(src, dst)] = int(cost)
             except ValueError:
-                print(f"Skipping invalid edge line (invalid node IDs or weight): {line}")
-
+                print(f"Skipping invalid edge line: {line}")
         elif section == "origin":
-            origin = int(line)
-
+            try:
+                origin = int(line)
+            except ValueError:
+                print(f"Skipping invalid origin line: {line}")
         elif section == "destination":
-            destination = list(map(int, line.replace(" ", "").split(';')))
+            try:
+                destination = list(map(int, line.replace(" ", "").split(";")))
+            except ValueError:
+                print(f"Skipping invalid destination line: {line}")
 
     return nodes, edges, origin, destination
 
