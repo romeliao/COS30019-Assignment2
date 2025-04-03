@@ -75,12 +75,14 @@ def main():
         result = bfs(origin, destinations, edges)
         if result:
             goal, expanded = result
-            path = trace_bfs_path(goal)
+            path = trace_bfs_path(goal)  # Use trace_path to reconstruct the path
+            goal = goal.id  # Extract the goal node ID from the Step object
     elif method == "DFS":
         result = dfs(origin, destinations, edges)
         if result:
             goal, expanded = result
-            path = trace_dfs_path(goal)
+            path = trace_dfs_path(goal)  # Use trace_path to reconstruct the path
+            goal = goal.id  # Extract the goal node ID from the Step object
     elif method == "ASTAR":
         result = a_star_search(origin, destinations, edges, nodes)
         if result:
