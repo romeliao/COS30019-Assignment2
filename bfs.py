@@ -21,15 +21,18 @@ def bfs(start, goal_list, edges):
         expanded += 1
         visited.add(current.id)
 
+        # Check if the current node is a goal
         if current.id in goal_list:
             return current, expanded
 
-        for neighbor in sorted([to for (frm, to) in edges if frm == current.id]):
+        # Iterate over neighbors of the current node
+        for neighbor, edge_cost in edges.get(current.id, []):  # Get neighbors from edges
             if neighbor not in visited and neighbor not in tracked:
-                cost = current.total_cost + edges.get((current.id, neighbor), float('inf'))
+                cost = current.total_cost + edge_cost
                 queue.append(Step(neighbor, current, cost))
                 tracked.add(neighbor)
 
+    # Return None if no solution is found
     return None, expanded
 
 def trace_path(end_step):

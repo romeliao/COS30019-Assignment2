@@ -2,6 +2,8 @@ import sys
 from gbfs import gbfs
 from bfs import bfs, trace_path as trace_bfs_path
 from dfs import dfs, trace_path as trace_dfs_path
+from AStar import a_star_search
+from HillClimbing import hill_climbing_search
 
 def parse_input(file_path):
     nodes = {}
@@ -9,7 +11,7 @@ def parse_input(file_path):
     origin = None
     destination = []
 
-    with open(file_path, 'r') as file:
+    with open(file_path, 'r', encoding='utf-8') as file:
         lines = file.readlines()
 
     section = None
@@ -37,7 +39,9 @@ def parse_input(file_path):
             try:
                 edge, cost = line.split(": ")
                 src, dst = map(int, edge.strip("()").split(","))
-                edges[(src, dst)] = int(cost)
+                if src not in edges:
+                    edges[src] = []
+                edges[src].append((dst, int(cost)))
             except ValueError:
                 print(f"Skipping invalid edge line: {line}")
         elif section == "origin":
@@ -77,6 +81,16 @@ def main():
         if result:
             goal, expanded = result
             path = trace_dfs_path(goal)
+    elif method == "ASTAR":
+        result = a_star_search(origin, destinations, edges, nodes)
+        if result:
+            path, expanded = result
+            goal = path[-1] if path else None  # The goal is the last node in the path
+    elif method == "HILLCLIMBING":
+        result = hill_climbing_search(origin, destinations, edges, nodes)
+        if result:
+            path, expanded = result
+            goal = path[-1] if path else None  # The goal is the last node in the path
     else:
         print(f"Unsupported method: {method}")
         return

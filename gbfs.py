@@ -1,12 +1,8 @@
 import heapq
 
 def get_neighbors(node, edges):
-    neighbors = []
-    for edge, cost in edges.items():
-        src, dst = edge
-        if src == node:
-            neighbors.append((dst, cost))
-    return neighbors
+    # Retrieve neighbors for the given node
+    return edges.get(node, [])
 
 def gbfs(start, goals, edges, nodes):
     # Greedy Best-First Search (GBFS) algorithm.
