@@ -15,7 +15,7 @@ def hill_climbing_search(origin, destinations, edges, nodes):
 
         best_heuristic = float('inf')
         
-        for neighbor, cost in neighbors:
+        for neighbor, _ in neighbors:
             if neighbor in visited:
                 continue
                 

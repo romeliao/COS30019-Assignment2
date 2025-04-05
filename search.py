@@ -66,6 +66,7 @@ def main():
     nodes, edges, origin, destinations = parse_input(filename)
     
     goal, expanded, path = None, 0, None  # Initialize variables with default values
+    total_cost = 0  # Initialize total cost
 
     if method == "GBFS":
         result = gbfs(origin, destinations, edges, nodes)
@@ -97,10 +98,20 @@ def main():
         print(f"Unsupported method: {method}")
         return
 
+    # Calculate the total cost of the path
+    if path:
+        for i in range(len(path) - 1):
+            for neighbor, cost in edges[path[i]]:
+                if neighbor == path[i + 1]:
+                    total_cost += cost
+                    break
+
+    # Print the results
     print(f"File: {filename}, Method: {method}")
     if goal:
         print(f"Goal Node: {goal}, Nodes Explored: {expanded}")
         print(f"Path: {' -> '.join(map(str, path)) if path else 'No path found.'}")
+        print(f"Path Cost: {total_cost}")
     else:
         print("No solution found.")
 
