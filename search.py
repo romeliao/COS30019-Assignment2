@@ -96,10 +96,10 @@ def main():
             path, expanded = result
             goal = path[-1] if path else None  # The goal is the last node in the path
     elif method == "DLS":
-            depth_limit = 5  # Set the depth limit (you can make this configurable)
-            result = dls(origin, destinations, edges, depth_limit)
-            if result:
-                goal, expanded, path = result
+        depth_limit = 5  # Set the depth limit (you can make this configurable)
+        result = dls(origin, destinations, edges, depth_limit)
+        if result:
+            goal, expanded, path = result
     else:
         print(f"Unsupported method: {method}")
         return
