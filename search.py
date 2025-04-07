@@ -4,6 +4,7 @@ from bfs import bfs, trace_path as trace_bfs_path
 from dfs import dfs, trace_path as trace_dfs_path
 from AStar import a_star_search
 from HillClimbing import hill_climbing_search
+from dls import dls
 
 def parse_input(file_path):
     nodes = {}
@@ -94,6 +95,11 @@ def main():
         if result:
             path, expanded = result
             goal = path[-1] if path else None  # The goal is the last node in the path
+    elif method == "DLS":
+            depth_limit = 5  # Set the depth limit (you can make this configurable)
+            result = dls(origin, destinations, edges, depth_limit)
+            if result:
+                goal, expanded, path = result
     else:
         print(f"Unsupported method: {method}")
         return
