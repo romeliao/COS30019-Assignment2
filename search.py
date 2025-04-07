@@ -6,6 +6,8 @@ from AStar import a_star_search
 from HillClimbing import hill_climbing_search
 from dls import dls
 
+depth_limit = 3  # Set the depth limit for DLS
+
 def parse_input(file_path):
     nodes = {}
     edges = {}
@@ -96,8 +98,8 @@ def main():
             path, expanded = result
             goal = path[-1] if path else None  # The goal is the last node in the path
     elif method == "DLS":
-        depth_limit = 5  # Set the depth limit (you can make this configurable)
-        result = dls(origin, destinations, edges, depth_limit)
+        limit = depth_limit # Use the global depth limit
+        result = dls(origin, destinations, edges, limit)
         if result:
             goal, expanded, path = result
     else:
