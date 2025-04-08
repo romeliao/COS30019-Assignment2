@@ -88,12 +88,12 @@ def main():
             goal, expanded = result
             path = trace_dfs_path(goal)  # Use trace_path to reconstruct the path
             goal = goal.id  # Extract the goal node ID from the Step object
-    elif method == "ASTAR":
+    elif method == "A*":
         result = a_star_search(origin, destinations, edges, nodes)
         if result:
             path, expanded = result
             goal = path[-1] if path else None  # The goal is the last node in the path
-    elif method == "HILLCLIMBING":
+    elif method == "HC":
         result = hill_climbing_search(origin, destinations, edges, nodes)
         if result:
             path, expanded = result
