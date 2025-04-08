@@ -6,7 +6,8 @@ from AStar import a_star_search
 from HillClimbing import hill_climbing_search
 from dls import dls
 
-depth_limit = 3  # Set the depth limit for DLS
+#variable to set the depth limit for DLS search
+depth_limit = 3  
 
 def parse_input(file_path):
     nodes = {}
@@ -115,9 +116,9 @@ def main():
                     break
 
     # Print the results
-    print(f"File: {filename}, Method: {method}")
+    print(f"{filename} {method}")
     if goal:
-        print(f"Goal Node: {goal}, Nodes Explored: {expanded}")
+        print(f"{goal}, {expanded}")
         print(f"Path: {' -> '.join(map(str, path)) if path else 'No path found.'}")
         print(f"Path Cost: {total_cost}")
     else:

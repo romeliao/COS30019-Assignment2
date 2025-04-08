@@ -21,7 +21,7 @@ Edges:
 (5,4): 8
 
 Origin:
-6
+2
 
 Destinations:
-1; 1
+5; 5
