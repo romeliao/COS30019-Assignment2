@@ -1,17 +1,5 @@
 def dls(start, goal_list, edges, depth_limit):
-    """
-    Perform Depth-Limited Search (DLS) to find a path to one of the goal nodes.
 
-    Args:
-        start (int): The starting node.
-        goal_list (list): A list of goal nodes.
-        edges (dict): A dictionary where keys are nodes and values are lists of tuples (neighbor, cost).
-        depth_limit (int): The maximum depth to explore.
-
-    Returns:
-        tuple: A tuple containing the goal Step object, the number of nodes expanded, and the path.
-               Returns (None, expanded, None) if no solution is found within the depth limit.
-    """
     def recursive_dls(node, depth, visited, path):
         nonlocal expanded
         expanded += 1
