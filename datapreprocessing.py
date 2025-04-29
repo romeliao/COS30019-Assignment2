@@ -7,28 +7,31 @@ from sklearn.preprocessing import MinMaxScaler
 base_dir = os.path.dirname(os.path.abspath(__file__))
 spreadsheet_path = os.path.join(base_dir, "Scats Data October 2006.xls")
 
-# Define the new headers
-headers = [
-    "SCATS Number", "Location", "CD_MELWAY", "NB_LATITUDE", "NB_LONGITUDE", 
-    "HF VicRoads Internal", "VR Internal Stat", "VR Internal Loc", 
-    "NB_TYPE_SURVEY", "Date", 
-    *[f"V{i:02}" for i in range(96)]  # Generate V00 to V95 dynamically
-]
+# Load the first two rows to create the headers
+header_rows = pd.read_excel(spreadsheet_path, sheet_name="Data", nrows=2, header=None)
+
+# Combine the two rows into a single header row
+headers = header_rows.apply(lambda x: ' '.join(x.dropna().astype(str)).strip(), axis=0).tolist()
+
+# Debug: Print the combined headers
+print("Combined Headers:", headers)
 
 # Load the "Data" sheet from the spreadsheet with the new headers
-data_sheet = pd.read_excel(spreadsheet_path, sheet_name="Data", header=1, names=headers)
+data_sheet = pd.read_excel(spreadsheet_path, sheet_name="Data", skiprows=2, header=None, names=headers)
 
-# Display basic information about the data
-print("Data Sheet Information:")
-print(data_sheet.info())
+# Debug: Print the DataFrame columns
+print("DataFrame Columns Before Renaming:", data_sheet.columns)
 
-# Display the headers (column names) of the data
-print("\nHeaders in the Data Sheet:")
-print(data_sheet.columns)
+# Rename the combined 'Start Time Date' column to 'Date'
+if 'Start Time Date' in data_sheet.columns:
+    data_sheet.rename(columns={'Start Time Date': 'Date'}, inplace=True)
 
-# Display the first few rows of the data
-print("\nData Sheet Head:")
-print(data_sheet.head())
+# Debug: Print the DataFrame columns after renaming
+print("DataFrame Columns After Renaming:", data_sheet.columns)
+
+# Ensure the 'Date' column exists
+if 'Date' not in data_sheet.columns:
+    raise ValueError("The 'Date' column is missing. Check the combined headers.")
 
 # Preprocessing Steps
 
@@ -40,7 +43,21 @@ columns_to_drop = ['HF VicRoads Internal', 'VR Internal Stat', 'VR Internal Loc'
 data_sheet.drop(columns=columns_to_drop, inplace=True)
 
 # 3. Normalize numerical columns (V00 to V95)
-numerical_columns = [col for col in data_sheet.columns if col.startswith('V')]
+# Identify numerical columns (columns starting with 'V')
+# Debug: Print all column names
+print("All Columns in DataFrame:", data_sheet.columns)
+
+# Identify numerical columns based on data type
+numerical_columns = data_sheet.select_dtypes(include=['number']).columns.tolist()
+
+# Debug: Print the numerical columns
+print("Numerical Columns (by data type):", numerical_columns)
+
+# Ensure numerical_columns is not empty
+if not numerical_columns:
+    raise ValueError("No numerical columns found. Check the column names in the DataFrame.")
+
+# Normalize numerical columns
 scaler = MinMaxScaler()
 data_sheet[numerical_columns] = scaler.fit_transform(data_sheet[numerical_columns])
 
@@ -48,6 +65,7 @@ data_sheet[numerical_columns] = scaler.fit_transform(data_sheet[numerical_column
 # Assuming 'NB_TYPE_SURVEY' is the target column
 X = data_sheet[numerical_columns]  # Features
 y = data_sheet['NB_TYPE_SURVEY']  # Target
+
 
 # 5. Split into training and testing sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
