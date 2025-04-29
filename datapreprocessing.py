@@ -18,6 +18,18 @@ headers = [
 # Load the "Data" sheet from the spreadsheet with the new headers
 data_sheet = pd.read_excel(spreadsheet_path, sheet_name="Data", header=1, names=headers)
 
+# Display basic information about the data
+print("Data Sheet Information:")
+print(data_sheet.info())
+
+# Display the headers (column names) of the data
+print("\nHeaders in the Data Sheet:")
+print(data_sheet.columns)
+
+# Display the first few rows of the data
+print("\nData Sheet Head:")
+print(data_sheet.head())
+
 # Preprocessing Steps
 
 # 1. Convert 'Date' column to datetime
