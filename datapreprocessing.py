@@ -61,9 +61,8 @@ if not numerical_columns:
 scaler = MinMaxScaler()
 data_sheet[numerical_columns] = scaler.fit_transform(data_sheet[numerical_columns])
 
-# 4. Split data into features (X) and target (y)
-# Assuming 'NB_TYPE_SURVEY' is the target column
-X = data_sheet[numerical_columns]  # Features
+# 4. Include 'Date' in the features
+X = data_sheet[numerical_columns + ['Date']]  # Add 'Date' to features
 y = data_sheet['NB_TYPE_SURVEY']  # Target
 
 
