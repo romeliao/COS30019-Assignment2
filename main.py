@@ -1,7 +1,9 @@
 import os
 import pandas as pd
+import numpy as np
 from datapreprocessing import preprocess_data
 from LSTM import train_lstm_model
+from random_forest import train_random_forest_model
 
 if __name__ == "__main__":
     # Define the input spreadsheet path, traffic data path, and output directory
@@ -33,54 +35,50 @@ if __name__ == "__main__":
             print(f"[ERROR] Missing required dataset: {path}")
             exit(1)
 
-    # Train the LSTM model and get predictions
+    # Train the LSTM model and show sample predictions
     print("[INFO] Training the LSTM model...")
     try:
-        model = train_lstm_model(X_train_path, y_train_path, X_test_path, y_test_path, output_dir)
+        lstm_model = train_lstm_model(X_train_path, y_train_path, X_test_path, y_test_path, output_dir)
     except Exception as e:
         print(f"[ERROR] LSTM model training failed: {e}")
-        exit(1)
-
-    # Load test labels and features to display predictions
-    print("[INFO] Loading test data for prediction preview...")
-    X_test = pd.read_csv(X_test_path)
-    y_test = pd.read_csv(y_test_path)
-
-    # Filter y_test to keep only columns V00 to V95 if they exist
-    v_columns = [f"V{str(i).zfill(2)}" for i in range(96)]
-    available_v_columns = [col for col in v_columns if col in y_test.columns]
-    if available_v_columns:
-        y_test = y_test[available_v_columns]
-
-    # Predict and show sample output
-    from tensorflow.keras.models import load_model
-    import numpy as np
-
-    models_dir = os.path.join(base_dir, "models")
-    model_path = os.path.join(models_dir, "lstm_traffic_model.h5")
-
-    if os.path.exists(model_path):
-        model = load_model(model_path)
-
-        from sklearn.preprocessing import MinMaxScaler
-        import joblib
-
-        scaler_path = os.path.join(models_dir, "lstm_scaler.save")
-        if os.path.exists(scaler_path):
-            scaler = joblib.load(scaler_path)
-        else:
-            scaler = MinMaxScaler()
-            X_test = X_test.select_dtypes(include='number')
-            scaler.fit(X_test)
-
-        X_test_scaled = scaler.transform(X_test.select_dtypes(include='number'))
-        X_test_scaled = np.reshape(X_test_scaled, (X_test_scaled.shape[0], 1, X_test_scaled.shape[1]))
-
-        predictions = model.predict(X_test_scaled)
-
-        print("\n[INFO] Sample Predictions vs Actual:")
-        for i in range(min(5, len(predictions))):
-            actual_value = y_test.iloc[i].values if len(y_test.columns) > 1 else [y_test.values[i]]
-            print(f"Predicted: {predictions[i][0]:.4f} | Actual: {actual_value[0]}")
     else:
-        print("[ERROR] Trained model not found. Skipping prediction preview.")
+        # Load test data for prediction preview
+        print("[INFO] Loading test data for prediction preview...")
+        X_test = pd.read_csv(X_test_path)
+        y_test = pd.read_csv(y_test_path)
+
+        # Generate predictions using the trained LSTM model
+        print("[INFO] Generating predictions with the LSTM model...")
+        try:
+            # Ensure X_test contains only numeric data
+            X_test = X_test.select_dtypes(include=[np.number])
+
+            # Convert X_test to a NumPy array and reshape it for LSTM input
+            X_test_scaled = X_test.values.astype(np.float32)  # Ensure the data type is float32
+            X_test_reshaped = X_test_scaled.reshape(X_test_scaled.shape[0], 1, X_test_scaled.shape[1])
+
+            # Generate predictions
+            predictions = lstm_model.predict(X_test_reshaped)
+
+            # Display sample predictions
+            print("\n[INFO] LSTM Sample Predictions vs Actual:")
+            for i in range(min(5, len(predictions))):
+                actual_value = y_test.iloc[i].values if len(y_test.columns) > 1 else [y_test.values[i]]
+                predicted_value = float(predictions[i][0]) if len(predictions[i]) == 1 else predictions[i][0]
+                print(f"Predicted: {predicted_value:.4f} | Actual: {actual_value[0]}")
+        except Exception as e:
+            print(f"[ERROR] Failed to generate predictions: {e}")
+
+
+    # Train the Random Forest model and show sample predictions
+    print("[INFO] Training the Random Forest model...")
+    try:
+        rf_model, rf_predictions = train_random_forest_model(X_train_path, y_train_path, X_test_path, y_test_path, output_dir)
+    except Exception as e:
+        print(f"[ERROR] Random Forest training failed: {e}")
+    else:
+        print("\n[INFO] Random Forest Sample Predictions vs Actual:")
+        for i in range(min(5, len(rf_predictions))):
+            actual_value = y_test.iloc[i].values if len(y_test.columns) > 1 else [y_test.values[i]]
+            predicted_value = rf_predictions[i] if len(actual_value) == 1 else rf_predictions[i][0]
+            print(f"Predicted: {predicted_value:.4f} | Actual: {actual_value[0]}")
