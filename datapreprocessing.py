@@ -69,7 +69,7 @@ def preprocess_data(spreadsheet_path, output_dir, traffic_data_path):
     X[numerical_columns] = scaler.fit_transform(X[numerical_columns])
 
     # Split into train/test
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=52)
 
     # Save to output_dir
     os.makedirs(output_dir, exist_ok=True)

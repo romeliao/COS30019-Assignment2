@@ -63,7 +63,7 @@ def train_lstm_model(X_train_path, y_train_path, X_test_path, y_test_path, outpu
 
     # Train the model
     print("[INFO] Training the LSTM model...")
-    model.fit(X_train_scaled, y_train, epochs=20, batch_size=32, validation_data=(X_test_scaled, y_test), verbose=1)
+    model.fit(X_train_scaled, y_train, epochs=50, batch_size=32, validation_data=(X_test_scaled, y_test), verbose=1)
 
     # Generate predictions
     predictions = model.predict(X_test_scaled)

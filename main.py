@@ -1,9 +1,12 @@
 import os
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
 from datapreprocessing import preprocess_data
 from LSTM import train_lstm_model
 from random_forest import train_random_forest_model
+from xgboost_model import train_xgboost_model
 
 if __name__ == "__main__":
     # Define the input spreadsheet path, traffic data path, and output directory
@@ -11,6 +14,7 @@ if __name__ == "__main__":
     spreadsheet_path = os.path.join(base_dir, "Scats Data October 2006.xls")
     traffic_data_path = os.path.join(base_dir, "Traffic_Count_Locations_with_LONG_LAT.csv")
     output_dir = os.path.join(base_dir, "processed_dataset")
+    models_predictions = os.path.join(base_dir, "models_predictions")
 
     # Ensure the output directory exists
     os.makedirs(output_dir, exist_ok=True)
@@ -70,15 +74,27 @@ if __name__ == "__main__":
             print(f"[ERROR] Failed to generate predictions: {e}")
 
 
-    # Train the Random Forest model and show sample predictions
-    print("[INFO] Training the Random Forest model...")
+
+
+    # Train the XGBoost model and save predictions
+    print("[INFO] Training the XGBoost model...")
     try:
-        rf_model, rf_predictions = train_random_forest_model(X_train_path, y_train_path, X_test_path, y_test_path, output_dir)
+        xgb_model, xgb_predictions = train_xgboost_model(X_train_path, y_train_path, X_test_path, y_test_path, output_dir,models_predictions)
+
+        # Save predictions to a CSV file
+        if len(xgb_predictions.shape) > 1 and xgb_predictions.shape[1] > 1:
+            # Multi-dimensional predictions (e.g., multiple target variables)
+            xgb_predictions_df = pd.DataFrame(xgb_predictions, columns=[f"Prediction_{i}" for i in range(xgb_predictions.shape[1])])
+        else:
+            # Single-dimensional predictions
+            xgb_predictions_df = pd.DataFrame(xgb_predictions, columns=["Prediction"])
+
+        xgb_predictions_df.to_csv(os.path.join(models_predictions, "xgboost_predictions.csv"), index=False)
+        print(f"[INFO] XGBoost predictions saved to {os.path.join(output_dir, 'xgboost_predictions.csv')}")
+
+        # Optionally, display a few rows of the predictions
+        print("\n[INFO] Sample XGBoost Predictions:")
+        print(xgb_predictions_df.head())
+
     except Exception as e:
-        print(f"[ERROR] Random Forest training failed: {e}")
-    else:
-        print("\n[INFO] Random Forest Sample Predictions vs Actual:")
-        for i in range(min(5, len(rf_predictions))):
-            actual_value = y_test.iloc[i].values if len(y_test.columns) > 1 else [y_test.values[i]]
-            predicted_value = rf_predictions[i] if len(actual_value) == 1 else rf_predictions[i][0]
-            print(f"Predicted: {predicted_value:.4f} | Actual: {actual_value[0]}")
+        print(f"[ERROR] XGBoost model training failed: {e}")
