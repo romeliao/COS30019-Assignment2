@@ -93,23 +93,6 @@ def train_xgboost_model(X_train_path, y_train_path, X_test_path, y_test_path, ou
     mse = mean_squared_error(y_test, predictions)
     print(f"[INFO] Mean Squared Error on Test Data: {mse}")
 
-    # Plot XGBoost predictions vs actual values
-    print("[INFO] Plotting XGBoost predictions vs actual values...")
-    plt.figure(figsize=(10, 6))
-    if len(y_test.shape) == 1:  # Handle single target variable
-        plt.plot(y_test.values[:100], label="Actual", linestyle='dashed')  # First 100 samples
-        plt.plot(predictions[:100], label="Predicted")
-    else:  # Handle multiple target variables
-        for i in range(min(5, y_test.shape[1])):  # Plot up to 5 target variables
-            plt.plot(y_test.iloc[:100, i].values, label=f"Actual_{i}", linestyle='dashed')  # First 100 samples
-            plt.plot(predictions[:100, i], label=f"Predicted_{i}")
-    plt.title("XGBoost Predictions vs Actual Values")
-    plt.xlabel("Sample Index")
-    plt.ylabel("Value")
-    plt.legend()
-    plt.grid()
-    plt.show()
-
     # Save the models
     models_dir = os.path.join(os.path.dirname(output_dir), "models")
     os.makedirs(models_dir, exist_ok=True)

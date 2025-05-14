@@ -1,11 +1,7 @@
 import os
 import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 from datapreprocessing import preprocess_data
-from LSTM import train_lstm_model
-from random_forest import train_random_forest_model
+from LSTM import train_lstm_model, generate_lstm_predictions
 from xgboost_model import train_xgboost_model
 
 if __name__ == "__main__":
@@ -39,6 +35,7 @@ if __name__ == "__main__":
             print(f"[ERROR] Missing required dataset: {path}")
             exit(1)
 
+
     # Train the LSTM model and show sample predictions
     print("[INFO] Training the LSTM model...")
     try:
@@ -46,30 +43,9 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"[ERROR] LSTM model training failed: {e}")
     else:
-        # Load test data for prediction preview
-        print("[INFO] Loading test data for prediction preview...")
-        X_test = pd.read_csv(X_test_path)
-        y_test = pd.read_csv(y_test_path)
-
         # Generate predictions using the trained LSTM model
-        print("[INFO] Generating predictions with the LSTM model...")
         try:
-            # Ensure X_test contains only numeric data
-            X_test = X_test.select_dtypes(include=[np.number])
-
-            # Convert X_test to a NumPy array and reshape it for LSTM input
-            X_test_scaled = X_test.values.astype(np.float32)  # Ensure the data type is float32
-            X_test_reshaped = X_test_scaled.reshape(X_test_scaled.shape[0], 1, X_test_scaled.shape[1])
-
-            # Generate predictions
-            predictions = lstm_model.predict(X_test_reshaped)
-
-            # Display sample predictions
-            print("\n[INFO] LSTM Sample Predictions vs Actual:")
-            for i in range(min(5, len(predictions))):
-                actual_value = y_test.iloc[i].values if len(y_test.columns) > 1 else [y_test.values[i]]
-                predicted_value = float(predictions[i][0]) if len(predictions[i]) == 1 else predictions[i][0]
-                print(f"Predicted: {predicted_value:.4f} | Actual: {actual_value[0]}")
+            predictions = generate_lstm_predictions(lstm_model, X_test_path, y_test_path)
         except Exception as e:
             print(f"[ERROR] Failed to generate predictions: {e}")
 

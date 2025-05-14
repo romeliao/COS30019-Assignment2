@@ -1,11 +1,13 @@
 import os
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout
 from tensorflow.keras.optimizers import Adam
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error
+
 
 def train_lstm_model(X_train_path, y_train_path, X_test_path, y_test_path, output_dir):
     """
@@ -61,9 +63,21 @@ def train_lstm_model(X_train_path, y_train_path, X_test_path, y_test_path, outpu
     optimizer = Adam(clipvalue=1.0)
     model.compile(optimizer=optimizer, loss='mean_squared_error')
 
-    # Train the model
+    # Train the model and capture the history
     print("[INFO] Training the LSTM model...")
-    model.fit(X_train_scaled, y_train, epochs=50, batch_size=32, validation_data=(X_test_scaled, y_test), verbose=1)
+    history = model.fit(X_train_scaled, y_train, epochs=100, batch_size=32, validation_data=(X_test_scaled, y_test), verbose=1)
+
+    # Plot training and validation loss
+    print("[INFO] Plotting training and validation loss...")
+    plt.figure(figsize=(10, 6))
+    plt.plot(history.history['loss'], label='Train Loss')
+    plt.plot(history.history['val_loss'], label='Validation Loss')
+    plt.title('Training and Validation Loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.grid()
+    plt.show()
 
     # Generate predictions
     predictions = model.predict(X_test_scaled)
@@ -84,3 +98,40 @@ def train_lstm_model(X_train_path, y_train_path, X_test_path, y_test_path, outpu
     print(f"[INFO] LSTM model saved to {model_path}")
 
     return model
+
+def generate_lstm_predictions(lstm_model, X_test_path, y_test_path):
+    """
+    Generate predictions using the trained LSTM model and display sample results.
+
+    Args:
+        lstm_model: Trained LSTM model.
+        X_test_path (str): Path to the testing features CSV file.
+        y_test_path (str): Path to the testing labels CSV file.
+
+    Returns:
+        predictions: Predictions made on the test dataset.
+    """
+    # Load test data
+    print("[INFO] Loading test data for prediction preview...")
+    X_test = pd.read_csv(X_test_path)
+    y_test = pd.read_csv(y_test_path)
+
+    # Ensure X_test contains only numeric data
+    X_test = X_test.select_dtypes(include=[np.number])
+
+    # Convert X_test to a NumPy array and reshape it for LSTM input
+    X_test_scaled = X_test.values.astype(np.float32)  # Ensure the data type is float32
+    X_test_reshaped = X_test_scaled.reshape(X_test_scaled.shape[0], 1, X_test_scaled.shape[1])
+
+    # Generate predictions
+    print("[INFO] Generating predictions with the LSTM model...")
+    predictions = lstm_model.predict(X_test_reshaped)
+
+    # Display sample predictions
+    print("\n[INFO] LSTM Sample Predictions vs Actual:")
+    for i in range(min(5, len(predictions))):
+        actual_value = y_test.iloc[i].values if len(y_test.columns) > 1 else [y_test.values[i]]
+        predicted_value = float(predictions[i][0]) if len(predictions[i]) == 1 else predictions[i][0]
+        print(f"Predicted: {predicted_value:.4f} | Actual: {actual_value[0]}")
+
+    return predictions
