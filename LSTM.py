@@ -65,7 +65,7 @@ def train_lstm_model(X_train_path, y_train_path, X_test_path, y_test_path, outpu
 
     # Train the model and capture the history
     print("[INFO] Training the LSTM model...")
-    history = model.fit(X_train_scaled, y_train, epochs=100, batch_size=32, validation_data=(X_test_scaled, y_test), verbose=1)
+    history = model.fit(X_train_scaled, y_train, epochs=25, batch_size=32, validation_data=(X_test_scaled, y_test), verbose=1)
 
     # Plot training and validation loss
     print("[INFO] Plotting training and validation loss...")

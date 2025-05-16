@@ -3,6 +3,7 @@ import pandas as pd
 from datapreprocessing import preprocess_data
 from LSTM import train_lstm_model, generate_lstm_predictions
 from xgboost_model import train_xgboost_model
+from gru import GRUModel
 
 if __name__ == "__main__":
     # Define the input spreadsheet path, traffic data path, and output directory
@@ -11,6 +12,7 @@ if __name__ == "__main__":
     traffic_data_path = os.path.join(base_dir, "Traffic_Count_Locations_with_LONG_LAT.csv")
     output_dir = os.path.join(base_dir, "processed_dataset")
     models_predictions = os.path.join(base_dir, "models_predictions")
+    models_dir = os.path.join(base_dir, "models")
 
     # Ensure the output directory exists
     os.makedirs(output_dir, exist_ok=True)
@@ -23,7 +25,7 @@ if __name__ == "__main__":
         print(f"[ERROR] Data preprocessing failed: {e}")
         exit(1)
 
-    # Define paths to processed datasets
+    # Define paths to processed datasets (use only the original, unscaled data)
     X_train_path = os.path.join(output_dir, "X_train.csv")
     y_train_path = os.path.join(output_dir, "y_train.csv")
     X_test_path = os.path.join(output_dir, "X_test.csv")
@@ -34,7 +36,6 @@ if __name__ == "__main__":
         if not os.path.exists(path):
             print(f"[ERROR] Missing required dataset: {path}")
             exit(1)
-
 
     # Train the LSTM model and show sample predictions
     print("[INFO] Training the LSTM model...")
@@ -49,13 +50,10 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"[ERROR] Failed to generate predictions: {e}")
 
-
-
-
     # Train the XGBoost model and save predictions
     print("[INFO] Training the XGBoost model...")
     try:
-        xgb_model, xgb_predictions = train_xgboost_model(X_train_path, y_train_path, X_test_path, y_test_path, output_dir,models_predictions)
+        xgb_model, xgb_predictions = train_xgboost_model(X_train_path, y_train_path, X_test_path, y_test_path, output_dir, models_predictions)
 
         # Save predictions to a CSV file
         if len(xgb_predictions.shape) > 1 and xgb_predictions.shape[1] > 1:
@@ -74,3 +72,19 @@ if __name__ == "__main__":
 
     except Exception as e:
         print(f"[ERROR] XGBoost model training failed: {e}")
+
+    # Train the GRU model and save predictions
+    print("[INFO] Training the GRU model...")
+    try:
+        model = GRUModel()
+        X_train, y_train, X_test, y_test = model.load_and_prepare_data(output_dir)
+
+        model.train(X_train, y_train, epochs = 10, batch_size = 64)
+
+        mse, mae = model.evaluate(X_test, y_test)
+        print(f"MSE: {mse:.2f}, MAE: {mae:.2f}")
+
+        model.save_model(os.path.join(models_dir, "traffic_gru_model.keras"))
+
+    except Exception as e:
+        print(f"Error: {e}")

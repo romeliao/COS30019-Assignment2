@@ -45,7 +45,6 @@ def preprocess_data(spreadsheet_path, output_dir, traffic_data_path):
     data.fillna(0, inplace=True)
 
     # Extract V00 to V95 columns as targets
-  # Dynamically detect columns ending with V00 to V95
     v_suffixes = [f"V{str(i).zfill(2)}" for i in range(96)]
     v_columns = [col for col in data.columns if any(col.endswith(v) for v in v_suffixes)]
 
@@ -53,7 +52,6 @@ def preprocess_data(spreadsheet_path, output_dir, traffic_data_path):
     missing_v_suffixes = [v for v in v_suffixes if not any(col.endswith(v) for col in data.columns)]
     if missing_v_suffixes:
         raise KeyError(f"The following expected V columns are missing: {missing_v_suffixes}")
-
 
     y = data[v_columns]
     X = data.drop(columns=v_columns)  # Remove V00-V95 from features
@@ -63,19 +61,23 @@ def preprocess_data(spreadsheet_path, output_dir, traffic_data_path):
     X = X[valid_rows]
     y = y[valid_rows]
 
-    # Normalize numerical features
-    numerical_columns = X.select_dtypes(include=['number']).columns.tolist()
-    scaler = MinMaxScaler()
-    X[numerical_columns] = scaler.fit_transform(X[numerical_columns])
-
     # Split into train/test
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=52)
 
-    # Save to output_dir
+    # Save original (unscaled) features
     os.makedirs(output_dir, exist_ok=True)
     X_train.to_csv(os.path.join(output_dir, "X_train.csv"), index=False)
     X_test.to_csv(os.path.join(output_dir, "X_test.csv"), index=False)
     y_train.to_csv(os.path.join(output_dir, "y_train.csv"), index=False)
     y_test.to_csv(os.path.join(output_dir, "y_test.csv"), index=False)
 
+    # Normalize numerical features for model input
+    numerical_columns = X_train.select_dtypes(include=['number']).columns.tolist()
+    scaler = MinMaxScaler()
+    X_train_scaled = X_train.copy()
+    X_test_scaled = X_test.copy()
+    X_train_scaled[numerical_columns] = scaler.fit_transform(X_train[numerical_columns])
+    X_test_scaled[numerical_columns] = scaler.transform(X_test[numerical_columns])
+
     print(f"Processed and combined datasets saved in: {output_dir}")
+    print("Scaled features saved as X_train.csv and X_test.csv")
