@@ -35,14 +35,8 @@ class GRUModel:
         return model
         
     def train(self, X_train, y_train, epochs = 100, batch_size = 32, validation_split = 0.1):
-        # Ensure the models directory exists
-        models_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
-        os.makedirs(models_dir, exist_ok=True)
-        checkpoint_path = os.path.join(models_dir, 'gru_traffic_model.keras')
-        callbacks = [
-            EarlyStopping(patience=15, restore_best_weights=True),
-            ModelCheckpoint(checkpoint_path, save_best_only=True)
-        ]
+        #monitoring algorithms to prevent stalling and saves the best model
+        callbacks = [EarlyStopping(patience = 15, restore_best_weights = True), ModelCheckpoint('best_model.keras', save_best_only = True)]
         
         #plots training validation
         history = self.model.fit(X_train, y_train, epochs = epochs, batch_size = batch_size, validation_split = validation_split, callbacks = callbacks, verbose = 1)
