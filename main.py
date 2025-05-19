@@ -77,14 +77,29 @@ if __name__ == "__main__":
     print("[INFO] Training the GRU model...")
     try:
         model = GRUModel()
-        X_train, y_train, X_test, y_test = model.load_and_prepare_data(output_dir)
-
+        X_train, y_train, X_test, y_test, scats_test = model.load_and_prepare_data(output_dir)
+        
         model.train(X_train, y_train, epochs = 10, batch_size = 64)
-
+        
         mse, mae = model.evaluate(X_test, y_test)
+        
         print(f"MSE: {mse:.2f}, MAE: {mae:.2f}")
+        
+        model.save_model(os.path.join(base_dir, "traffic_gru_model.keras"))
+        
+        # intended route, change this and the best routes value if looking for a different route)
+        scats_sites = ["2000", "3122"]
+        
+        predicted_flows = model.predict_flows_for_scats(scats_sites, X_test, scats_test)
+        scats_data = model.load_scats_coordinates(os.path.join(output_dir, "X_test.csv"))
+        
+        # Convert keys to strings
+        scats_data = {str(k): v for k, v in scats_data.items()}
+        predicted_flows = {str(k): v for k, v in predicted_flows.items()}
 
-        model.save_model(os.path.join(models_dir, "traffic_gru_model.keras"))
+        # Build graph and find routes
+        graph = model.build_scats_graph(scats_data, predicted_flows)
+        best_routes = model.find_optimal_routes(graph, "2000", "3122", k=3)
 
     except Exception as e:
         print(f"Error: {e}")
