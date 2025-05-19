@@ -4,6 +4,7 @@ from datapreprocessing import preprocess_data
 from LSTM import train_lstm_model, generate_lstm_predictions
 from xgboost_model import train_xgboost_model
 from gru import GRUModel
+from AStar import a_star_search, nx_to_edge, get_coords
 
 if __name__ == "__main__":
     # Define the input spreadsheet path, traffic data path, and output directory
@@ -78,28 +79,35 @@ if __name__ == "__main__":
     try:
         model = GRUModel()
         X_train, y_train, X_test, y_test, scats_test = model.load_and_prepare_data(output_dir)
-        
-        model.train(X_train, y_train, epochs = 10, batch_size = 64)
-        
+
+        #model training
+        model.train(X_train, y_train, epochs=10, batch_size=64)
+
         mse, mae = model.evaluate(X_test, y_test)
-        
         print(f"MSE: {mse:.2f}, MAE: {mae:.2f}")
-        
+
         model.save_model(os.path.join(base_dir, "traffic_gru_model.keras"))
-        
-        # intended route, change this and the best routes value if looking for a different route)
-        scats_sites = ["2000", "3122"]
-        
+
+        optimal travel route and time
+        scats_sites = ["3122", "4040"]
         predicted_flows = model.predict_flows_for_scats(scats_sites, X_test, scats_test)
+
         scats_data = model.load_scats_coordinates(os.path.join(output_dir, "X_test.csv"))
-        
-        # Convert keys to strings
         scats_data = {str(k): v for k, v in scats_data.items()}
         predicted_flows = {str(k): v for k, v in predicted_flows.items()}
 
-        # Build graph and find routes
         graph = model.build_scats_graph(scats_data, predicted_flows)
-        best_routes = model.find_optimal_routes(graph, "2000", "3122", k=3)
+        best_routes = model.find_optimal_routes(graph, "3122", "4040", k=3)
+        
+        #astar
+        edges = nx_to_edge(graph)
+        coords = get_coords(scats_data)
+        origin = "3122"
+        destinations = {"4040"}
+
+        path, nodes_created = a_star_search(origin, destinations, edges, coords)
+        print("A* Path:", path)
+        print("Nodes Created:", nodes_created)
 
     except Exception as e:
         print(f"Error: {e}")
