@@ -1,122 +1,197 @@
-import os
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Dropout
+from tensorflow.keras.layers import LSTM, Dense, Dropout, Input
 from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, mean_absolute_error
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import os
+import networkx as nx
+from math import radians, sin, cos, sqrt, atan2
 
-def train_lstm_model(X_train_path, y_train_path, X_test_path, y_test_path, output_dir):
-    """
-    Train an LSTM model for traffic condition prediction.
+class LSTMModel:
+    def __init__(self, timesteps=96, n_features=185):
+        self.timesteps = timesteps
+        self.n_features = n_features
+        self.scaler = MinMaxScaler(feature_range=(0, 1))
+        self.model = self._build_model()
+    
+    def _build_model(self):
+        model = Sequential([
+            Input(shape=(self.timesteps, self.n_features)),
+            LSTM(128, return_sequences=True),
+            Dropout(0.3),
+            LSTM(64, return_sequences=True),
+            Dropout(0.3),
+            LSTM(32),
+            Dropout(0.3),
+            Dense(self.timesteps)
+        ])
+        model.compile(optimizer=Adam(0.001), loss='mse', metrics=['mae'])
+        return model
 
-    Args:
-        X_train_path (str): Path to the training features CSV file.
-        y_train_path (str): Path to the training labels CSV file.
-        X_test_path (str): Path to the testing features CSV file.
-        y_test_path (str): Path to the testing labels CSV file.
-        output_dir (str): Directory to save the processed datasets.
+    def train(self, X_train, y_train, epochs=100, batch_size=32, validation_split=0.1):
+        callbacks = [
+            EarlyStopping(patience=15, restore_best_weights=True),
+            ModelCheckpoint(os.path.join("models", "best_lstm_model.keras"), save_best_only=True)
+        ]
+        history = self.model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size,
+                                 validation_split=validation_split, callbacks=callbacks, verbose=1)
+        #diagram 1
+        plt.figure(figsize=(10, 5))
+        plt.plot(history.history['loss'], label='Training Loss')
+        plt.plot(history.history['val_loss'], label='Validation Loss')
+        plt.title('Model Training History')
+        plt.legend()
+        plt.show()
 
-    Returns:
-        model: Trained LSTM model.
-    """
-    # Load the training and testing data
-    X_train = pd.read_csv(X_train_path)
-    y_train = pd.read_csv(y_train_path)
-    X_test = pd.read_csv(X_test_path)
-    y_test = pd.read_csv(y_test_path)
+    def evaluate(self, X_train, y_train, X_test, y_test):
 
-    # Handle NaN and infinite values in X_train and X_test
-    X_train.replace([np.inf, -np.inf], np.nan, inplace=True)
-    X_test.replace([np.inf, -np.inf], np.nan, inplace=True)
-    X_train.fillna(0, inplace=True)
-    X_test.fillna(0, inplace=True)
+        # Predict on test set
+        preds_test = self.model.predict(X_test, verbose=0)
+        preds_test_inv = self.scaler.inverse_transform(preds_test.reshape(-1, 1))
+        y_test_inv = self.scaler.inverse_transform(y_test.reshape(-1, 1))
+        mae_test = mean_absolute_error(y_test_inv, preds_test_inv)
 
-    # Filter numeric columns only
-    X_train = X_train.select_dtypes(include=[np.number])
-    X_test = X_test.select_dtypes(include=[np.number])
+        # Predict on train set
+        preds_train = self.model.predict(X_train, verbose=0)
+        preds_train_inv = self.scaler.inverse_transform(preds_train.reshape(-1, 1))
+        y_train_inv = self.scaler.inverse_transform(y_train.reshape(-1, 1))
+        mae_train = mean_absolute_error(y_train_inv, preds_train_inv)
 
-    # Align columns in X_test with X_train
-    X_test = X_test.reindex(columns=X_train.columns, fill_value=0)
 
-    # Scale the data
-    scaler = MinMaxScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
+        mse = mean_squared_error(y_test_inv, preds_test_inv)
+        mae = mean_absolute_error(y_test_inv, preds_test_inv)
 
-    # Reshape the data for LSTM (samples, timesteps, features)
-    X_train_scaled = np.reshape(X_train_scaled, (X_train_scaled.shape[0], 1, X_train_scaled.shape[1]))
-    X_test_scaled = np.reshape(X_test_scaled, (X_test_scaled.shape[0], 1, X_test_scaled.shape[1]))
+        #diagram 2
+        plt.figure(figsize=(15, 5))
+        plt.plot(y_test_inv[:self.timesteps], label='Actual')
+        plt.plot(preds_test_inv[:self.timesteps], label='Predicted')
+        plt.title('Flow Prediction')
+        plt.ylabel('Flow')
+        plt.xlabel('Time Steps')
+        plt.legend()
+        plt.show()
 
-    # Build the LSTM model
-    model = Sequential()
-    model.add(LSTM(50, return_sequences=True, input_shape=(X_train_scaled.shape[1], X_train_scaled.shape[2])))
-    model.add(Dropout(0.2))
-    model.add(LSTM(50, return_sequences=False))
-    model.add(Dropout(0.2))
-    model.add(Dense(y_train.shape[1]))  # Adjusted to match the number of target variables
+        #Diagram 3
+        plt.figure(figsize=(6, 6))
+        plt.bar(['Train', 'Test'], [mae_train, mae_test], color=['skyblue', 'salmon'])
+        plt.title('Final MAE: Train vs Test')
+        plt.ylabel('MAE')
+        plt.show()
 
-    # Compile the model
-    optimizer = Adam(clipvalue=1.0)
-    model.compile(optimizer=optimizer, loss='mean_squared_error')
+        return mae_train, mae_test
 
-    # Train the model and capture the history
-    print("[INFO] Training the LSTM model...")
-    history = model.fit(X_train_scaled, y_train, epochs=100, batch_size=32, validation_data=(X_test_scaled, y_test), verbose=1)
+    def load_and_prepare_data(self, data_dir):
+        X_train = pd.read_csv(os.path.join(data_dir, "X_train.csv"))
+        y_train = pd.read_csv(os.path.join(data_dir, "y_train.csv"))
 
-    # 1. Plot training and validation loss
-    print("[INFO] Plotting training and validation loss...")
-    plt.figure(figsize=(10, 6))
-    plt.plot(history.history['loss'], label='Train Loss')
-    plt.plot(history.history['val_loss'], label='Validation Loss')
-    plt.title('Training and Validation Loss')
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.legend()
-    plt.grid()
-    plt.tight_layout()
-    plt.show()
+        scats_col = next((c for c in X_train.columns if 'scats' in c.lower()), None)
+        if scats_col is None:
+            raise ValueError("SCATS column not found in dataset.")
+        X_train = X_train.rename(columns={scats_col: 'SCATS_Number'})
+        scats_numbers = X_train['SCATS_Number'].copy()
 
-    # Generate predictions
-    predictions = model.predict(X_test_scaled)
+        if 'Date' in X_train.columns:
+            X_train['Date'] = pd.to_datetime(X_train['Date'])
+            X_train['hour'] = X_train['Date'].dt.hour
+            X_train['day_of_week'] = X_train['Date'].dt.dayofweek
+            X_train['is_weekend'] = X_train['day_of_week'].isin([5,6]).astype(int)
+            X_train.drop('Date', axis=1, inplace=True)
 
-    # Check for NaN or infinite values in predictions
-    if np.any(np.isnan(predictions)) or np.any(np.isinf(predictions)):
-        raise ValueError("Predictions contain NaN or infinite values.")
+        X_train = pd.get_dummies(X_train.drop('SCATS_Number', axis=1))
+        X_train = X_train.astype('float32').values
+        y_train = y_train.astype('float32').values
 
-    # 3. Training vs Test Loss Comparison
-    print("[INFO] Plotting final loss comparison (train vs test)...")
-    final_train_loss = history.history['loss'][-1]
-    final_val_loss = history.history['val_loss'][-1]
-    plt.figure(figsize=(6, 5))
-    plt.bar(['Train', 'Test'], [final_train_loss, final_val_loss], color=['skyblue', 'salmon'])
-    plt.ylabel('Loss')
-    plt.title('Final Loss: Train vs Test')
-    plt.tight_layout()
-    plt.show()
+        if y_train.ndim == 2:
+            y_train = y_train.reshape(y_train.shape[0], y_train.shape[1], 1)
+        X_train = np.tile(X_train[:, np.newaxis, :], (1, y_train.shape[1], 1))
 
-    # Evaluate the model
-    mse = mean_squared_error(y_test, predictions)
-    print(f"[INFO] Mean Squared Error on Test Data: {mse}")
+        split = int(0.8 * len(X_train))
+        X_train, X_test = X_train[:split], X_train[split:]
+        y_train, y_test = y_train[:split], y_train[split:]
+        scats_test = scats_numbers.values[split:]
 
-    # Save the model in the 'models' folder at the root level
-    models_dir = os.path.join(os.path.dirname(output_dir), "models")
-    os.makedirs(models_dir, exist_ok=True)  # Create the directory if it doesn't exist
-    model_path = os.path.join(models_dir, "lstm_traffic_model.h5")
-    model.save(model_path)
-    print(f"[INFO] LSTM model saved to {model_path}")
+        y_train = self.scaler.fit_transform(y_train.reshape(-1, 1)).reshape(y_train.shape)
+        y_test = self.scaler.transform(y_test.reshape(-1, 1)).reshape(y_test.shape)
 
-    return model
+        return X_train, y_train, X_test, y_test, scats_test
 
-def generate_lstm_predictions(model, X_test_scaled):
-    """
-    Generate predictions using a trained LSTM model.
-    Args:
-        model: Trained LSTM model.
-        X_test_scaled: Scaled test features, shaped for LSTM input.
-    Returns:
-        np.ndarray: Predicted values.
-    """
-    return model.predict(X_test_scaled)
+    def save_model(self, filepath):
+        self.model.save(filepath)
+
+    def load_scats_coordinates(self, test_csv_path):
+        df_test = pd.read_csv(test_csv_path)
+        scats_data = (
+            df_test[["SCATS Number", "NB_LATITUDE", "NB_LONGITUDE"]]
+            .drop_duplicates("SCATS Number")
+            .set_index("SCATS Number")
+            .rename(columns={"NB_LATITUDE": "Latitude", "NB_LONGITUDE": "Longitude"})
+            .to_dict(orient="index")
+        )
+        return scats_data
+
+    def flow_to_speed(self, flow):
+        if flow <= 1800:
+            speed = 50 - (flow / 60)
+        else:
+            speed = 20 - (flow - 1800) / 100
+        return min(max(speed, 5), 60)
+
+    def calculate_travel_time(self, distance_km, predicted_flow):
+        speed = self.flow_to_speed(predicted_flow)
+        return (distance_km / speed) * 3600 + 30
+
+    def predict_flows_for_scats(self, scats_sites, X_test, scats_test):
+        flows = {}
+        scats_test = np.array(scats_test).astype(str)
+
+        for scats in scats_sites:
+            mask = scats_test == scats
+            if not np.any(mask):
+                flows[scats] = 500
+                continue
+
+            X_scats = X_test[mask]
+            preds = [self.model.predict(X_scats[i:i+1], verbose=0)[0][0] for i in range(len(X_scats))]
+            mean_pred_scaled = np.mean(preds).reshape(-1, 1)
+            flows[scats] = self.scaler.inverse_transform(mean_pred_scaled)[0, 0]
+
+        return flows
+
+    def haversine(self, lat1, lon1, lat2, lon2):
+        R = 6371
+        lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+        dlat = lat2 - lat1
+        dlon = lon2 - lon1
+        a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+        c = 2 * atan2(sqrt(a), sqrt(1-a))
+        return R * c
+
+    def build_scats_graph(self, scats_data, predicted_flows):
+        G = nx.Graph()
+        for origin, origin_data in scats_data.items():
+            for dest, dest_data in scats_data.items():
+                if origin != dest:
+                    distance = self.haversine(
+                        origin_data["Latitude"], origin_data["Longitude"],
+                        dest_data["Latitude"], dest_data["Longitude"]
+                    )
+                    flow = predicted_flows.get(dest, 500)
+                    travel_time = self.calculate_travel_time(distance, flow)
+                    G.add_edge(origin, dest, weight=travel_time)
+        return G
+
+    def find_optimal_routes(self, graph, origin_scats, dest_scats, k=3):
+        routes = []
+        for path in nx.shortest_simple_paths(graph, origin_scats, dest_scats, weight="weight"):
+            total_time = sum(graph[path[i]][path[i+1]]['weight'] for i in range(len(path)-1))
+            routes.append((path, total_time))
+            if len(routes) == k:
+                break
+
+        for i, (path, total_seconds) in enumerate(routes, 1):
+            print(f"Route {i}: {' -> '.join(path)} | Time: {total_seconds / 60:.1f} mins")
+        return routes

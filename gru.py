@@ -38,7 +38,8 @@ class GRUModel:
         
     def train(self, X_train, y_train, epochs = 100, batch_size = 32, validation_split = 0.1):
         #monitoring algorithms to prevent stalling and saves the best model
-        callbacks = [EarlyStopping(patience = 15, restore_best_weights = True), ModelCheckpoint('best_model.keras', save_best_only = True)]
+        callbacks = [EarlyStopping(patience = 15, restore_best_weights = True), 
+                     ModelCheckpoint("models",'best_model.keras', save_best_only = True)]
         
         #plots training validation
         history = self.model.fit(X_train, y_train, epochs = epochs, batch_size = batch_size, validation_split = validation_split, callbacks = callbacks, verbose = 1)

@@ -1,115 +1,155 @@
 import os
-import numpy as np  
-import pandas as pd 
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
 from xgboost import XGBRegressor
-from sklearn.metrics import mean_squared_error
-import joblib
-import matplotlib.pyplot as plt  # Add this import for plotting
+from sklearn.metrics import mean_squared_error, mean_absolute_error
+from sklearn.preprocessing import MinMaxScaler
+import networkx as nx
+from math import radians, sin, cos, sqrt, atan2
 
-def train_xgboost_model(X_train_path, y_train_path, X_test_path, y_test_path, output_dir, models_predictions):
-    """
-    Train an XGBoost model for traffic condition prediction.
-
-    Args:
-        X_train_path (str): Path to the training features CSV file.
-        y_train_path (str): Path to the training labels CSV file.
-        X_test_path (str): Path to the testing features CSV file.
-        y_test_path (str): Path to the testing labels CSV file.
-        output_dir (str): Directory to save the trained model.
-
-    Returns:
-        model: Trained XGBoost model.
-        predictions: Predictions made on X_test.
-    """
-    # Load the training and testing data
-    X_train = pd.read_csv(X_train_path)
-    y_train = pd.read_csv(y_train_path).squeeze()  # Ensure it's a Series
-    X_test = pd.read_csv(X_test_path)
-    y_test = pd.read_csv(y_test_path).squeeze()
-
-    # Handle NaN and infinite values in X_train and X_test
-    X_train.replace([np.inf, -np.inf], np.nan, inplace=True)
-    X_test.replace([np.inf, -np.inf], np.nan, inplace=True)
-    X_train.fillna(0, inplace=True)
-    X_test.fillna(0, inplace=True)
-
-    # Filter numeric columns only
-    X_train = X_train.select_dtypes(include=[np.number])
-    X_test = X_test.select_dtypes(include=[np.number])
-
-    # Align columns in X_test with X_train
-    X_test = X_test.reindex(columns=X_train.columns, fill_value=0)
-
-    # Initialize XGBoost Regressor with tuned hyperparameters
-    eval_metric = "mae"  # Set your desired evaluation metric here
-    model = XGBRegressor(
-        n_estimators=200,
-        learning_rate=0.05,
-        max_depth=6,
-        subsample=0.8,
-        colsample_bytree=0.8,
-        random_state=42,
-        n_jobs=-1,
-        eval_metric=eval_metric,  # Dynamically set the evaluation metric
-        early_stopping_rounds=10
-    )
-
-    # Train the model with evaluation set
-    print("[INFO] Training XGBoost model...")
-    eval_set = [(X_train, y_train), (X_test, y_test)]
-    model.fit(
-        X_train, y_train,
-        eval_set=eval_set,
-        verbose=False
-    )
-
-    # Extract training and validation metrics
-    results = model.evals_result()
-
-    # Dynamically determine the metric name for plotting
-    metric_name = eval_metric.upper()  # Convert to uppercase for better readability
-
-    # 1. Model Training Curve
-    print(f"[INFO] Plotting training and validation {metric_name}...")
-    plt.figure(figsize=(10, 6))
-    epochs = range(1, len(results['validation_0'][eval_metric]) + 1)
-    plt.plot(epochs, results['validation_0'][eval_metric], label=f"Train {metric_name}")
-    plt.plot(epochs, results['validation_1'][eval_metric], label=f"Validation {metric_name}")
-    plt.title(f"Training and Validation {metric_name}")
-    plt.xlabel("Epochs")
-    plt.ylabel(metric_name)
-    plt.legend()
-    plt.grid()
-    plt.tight_layout()
-    plt.show()
-
-    # Generate predictions
-    predictions = model.predict(X_test)
-
-    # 3. Training vs Test Metric Comparison
-    final_train_metric = results['validation_0'][eval_metric][-1]
-    final_val_metric = results['validation_1'][eval_metric][-1]
-    plt.figure(figsize=(6, 5))
-    plt.bar(['Train', 'Test'], [final_train_metric, final_val_metric], color=['skyblue', 'salmon'])
-    plt.ylabel(metric_name)
-    plt.title(f"Final {metric_name}: Train vs Test")
-    plt.tight_layout()
-    plt.show()
-
-    # Check for NaN or infinite values in predictions
-    if np.any(np.isnan(predictions)) or np.any(np.isinf(predictions)):
-        raise ValueError("Predictions contain NaN or infinite values.")
+class XGBoostModel:
+    def __init__(self, timesteps=96):
+        self.timesteps = timesteps
+        self.model = XGBRegressor(n_estimators=100, learning_rate=0.1, max_depth=6)
+        self.scaler = MinMaxScaler()
+    
+    def load_and_prepare_data(self, data_dir):
+        X = pd.read_csv(os.path.join(data_dir, "X_train.csv"))
+        y = pd.read_csv(os.path.join(data_dir, "y_train.csv"))
         
+        scats_col = next((c for c in X.columns if 'scats' in c.lower()), None)
+        X = X.rename(columns={scats_col: 'SCATS_Number'})
+        scats_numbers = X['SCATS_Number'].copy()
 
-    # Evaluate the model
-    mse = mean_squared_error(y_test, predictions)
-    print(f"[INFO] Mean Squared Error on Test Data: {mse}")
+        if 'Date' in X.columns:
+            X['Date'] = pd.to_datetime(X['Date'])
+            X['hour'] = X['Date'].dt.hour
+            X['day_of_week'] = X['Date'].dt.dayofweek
+            X['is_weekend'] = X['day_of_week'].isin([5,6]).astype(int)
+            X.drop('Date', axis=1, inplace=True)
 
-    # Save the models
-    models_dir = os.path.join(os.path.dirname(output_dir), "models")
-    os.makedirs(models_dir, exist_ok=True)
-    model_path = os.path.join(models_dir, "xgboost_traffic_model.pkl")
-    joblib.dump(model, model_path)
-    print(f"[INFO] XGBoost model saved to {model_path}")
+        X = pd.get_dummies(X.drop('SCATS_Number', axis=1))
+        y = y.mean(axis=1).values  # Reduce to 1D for regression
 
-    return model, predictions
+        X = X.astype('float32').values
+        y = y.astype('float32')
+
+        y_scaled = self.scaler.fit_transform(y.reshape(-1, 1)).flatten()
+
+        split = int(0.8 * len(X))
+        X_train, X_test = X[:split], X[split:]
+        y_train, y_test = y_scaled[:split], y_scaled[split:]
+        scats_test = scats_numbers.values[split:]
+        
+        return X_train, y_train, X_test, y_test, scats_test
+    
+    def train(self, X_train, y_train):
+        self.model.fit(X_train, y_train)
+    
+    def evaluate(self, X_test, y_test, X_train=None, y_train=None):
+        preds_test = self.model.predict(X_test)
+        preds_test_inv = self.scaler.inverse_transform(preds_test.reshape(-1, 1)).flatten()
+        y_test_inv = self.scaler.inverse_transform(y_test.reshape(-1, 1)).flatten()
+
+        mae_test = mean_absolute_error(y_test_inv, preds_test_inv)
+
+        # Diagram 2: Test Prediction vs Actual
+        plt.figure(figsize=(15, 5))
+        plt.plot(y_test_inv[:self.timesteps], label='Actual')
+        plt.plot(preds_test_inv[:self.timesteps], label='Predicted')
+        plt.title('Flow Prediction')
+        plt.ylabel('Flow')
+        plt.xlabel('Time Steps')
+        plt.legend()
+        plt.show()
+
+        # Calculate train MAE if training data is provided
+        if X_train is not None and y_train is not None:
+            preds_train = self.model.predict(X_train)
+            preds_train_inv = self.scaler.inverse_transform(preds_train.reshape(-1, 1)).flatten()
+            y_train_inv = self.scaler.inverse_transform(y_train.reshape(-1, 1)).flatten()
+            mae_train = mean_absolute_error(y_train_inv, preds_train_inv)
+        else:
+            mae_train = 0
+
+        # Diagram 3: MAE Comparison
+        plt.figure(figsize=(6, 6))
+        plt.bar(['Train', 'Test'], [mae_train, mae_test], color=['skyblue', 'salmon'])
+        plt.title('Final MAE: Train vs Test')
+        plt.ylabel('MAE')
+        plt.show()
+
+        mse = mean_squared_error(y_test_inv, preds_test_inv)
+        return mse, mae_test
+
+    def predict_flows_for_scats(self, scats_sites, X_test, scats_test):
+        flows = {}
+        scats_test = np.array(scats_test).astype(str)
+        
+        for scats in scats_sites:
+            mask = scats_test == scats
+            if not np.any(mask):
+                flows[scats] = 500
+                continue
+
+            X_scats = X_test[mask]
+            preds = self.model.predict(X_scats)
+            mean_pred = np.mean(preds).reshape(-1, 1)
+            flows[scats] = self.scaler.inverse_transform(mean_pred)[0, 0]
+
+        return flows
+    
+    def flow_to_speed(self, flow):
+        if flow <= 1800:
+            speed = 50 - (flow / 60)
+        else:
+            speed = 20 - (flow - 1800) / 100
+        return min(max(speed, 5), 60)
+
+    def calculate_travel_time(self, distance_km, predicted_flow):
+        speed = self.flow_to_speed(predicted_flow)
+        travel_time = (distance_km / speed) * 3600 + 30  # Seconds
+        return travel_time
+
+    def load_scats_coordinates(self, test_csv_path):
+        df_test = pd.read_csv(test_csv_path)
+        scats_data = (
+            df_test[["SCATS Number", "NB_LATITUDE", "NB_LONGITUDE"]]
+            .drop_duplicates("SCATS Number")
+            .set_index("SCATS Number")
+            .rename(columns={"NB_LATITUDE": "Latitude", "NB_LONGITUDE": "Longitude"})
+            .to_dict(orient="index")
+        )
+        return scats_data
+
+    def haversine(self, lat1, lon1, lat2, lon2):
+        R = 6371
+        lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+        dlat = lat2 - lat1
+        dlon = lon2 - lon1
+        a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+        c = 2 * atan2(sqrt(a), sqrt(1-a))
+        return R * c
+
+    def build_scats_graph(self, scats_data, predicted_flows):
+        G = nx.Graph()
+        for origin, o_data in scats_data.items():
+            for dest, d_data in scats_data.items():
+                if origin != dest:
+                    dist = self.haversine(o_data["Latitude"], o_data["Longitude"], d_data["Latitude"], d_data["Longitude"])
+                    flow = predicted_flows.get(dest, 500)
+                    time = self.calculate_travel_time(dist, flow)
+                    G.add_edge(origin, dest, weight=time)
+        return G
+
+    def find_optimal_routes(self, graph, origin_scats, dest_scats, k=3):
+        routes = []
+        for path in nx.shortest_simple_paths(graph, origin_scats, dest_scats, weight="weight"):
+            total_time = sum(graph[path[i]][path[i+1]]['weight'] for i in range(len(path)-1))
+            routes.append((path, total_time))
+            if len(routes) == k:
+                break
+        for i, (path, total_sec) in enumerate(routes, 1):
+            print(f"Route {i}: {' -> '.join(path)} | Time: {total_sec/60:.1f} mins")
+        return routes
