@@ -8,7 +8,6 @@ from tensorflow.keras.optimizers import Adam
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error
 
-
 def train_lstm_model(X_train_path, y_train_path, X_test_path, y_test_path, output_dir):
     """
     Train an LSTM model for traffic condition prediction.
@@ -65,9 +64,9 @@ def train_lstm_model(X_train_path, y_train_path, X_test_path, y_test_path, outpu
 
     # Train the model and capture the history
     print("[INFO] Training the LSTM model...")
-    history = model.fit(X_train_scaled, y_train, epochs=25, batch_size=32, validation_data=(X_test_scaled, y_test), verbose=1)
+    history = model.fit(X_train_scaled, y_train, epochs=100, batch_size=32, validation_data=(X_test_scaled, y_test), verbose=1)
 
-    # Plot training and validation loss
+    # 1. Plot training and validation loss
     print("[INFO] Plotting training and validation loss...")
     plt.figure(figsize=(10, 6))
     plt.plot(history.history['loss'], label='Train Loss')
@@ -77,6 +76,7 @@ def train_lstm_model(X_train_path, y_train_path, X_test_path, y_test_path, outpu
     plt.ylabel('Loss')
     plt.legend()
     plt.grid()
+    plt.tight_layout()
     plt.show()
 
     # Generate predictions
@@ -85,6 +85,17 @@ def train_lstm_model(X_train_path, y_train_path, X_test_path, y_test_path, outpu
     # Check for NaN or infinite values in predictions
     if np.any(np.isnan(predictions)) or np.any(np.isinf(predictions)):
         raise ValueError("Predictions contain NaN or infinite values.")
+
+    # 3. Training vs Test Loss Comparison
+    print("[INFO] Plotting final loss comparison (train vs test)...")
+    final_train_loss = history.history['loss'][-1]
+    final_val_loss = history.history['val_loss'][-1]
+    plt.figure(figsize=(6, 5))
+    plt.bar(['Train', 'Test'], [final_train_loss, final_val_loss], color=['skyblue', 'salmon'])
+    plt.ylabel('Loss')
+    plt.title('Final Loss: Train vs Test')
+    plt.tight_layout()
+    plt.show()
 
     # Evaluate the model
     mse = mean_squared_error(y_test, predictions)
@@ -99,39 +110,13 @@ def train_lstm_model(X_train_path, y_train_path, X_test_path, y_test_path, outpu
 
     return model
 
-def generate_lstm_predictions(lstm_model, X_test_path, y_test_path):
+def generate_lstm_predictions(model, X_test_scaled):
     """
-    Generate predictions using the trained LSTM model and display sample results.
-
+    Generate predictions using a trained LSTM model.
     Args:
-        lstm_model: Trained LSTM model.
-        X_test_path (str): Path to the testing features CSV file.
-        y_test_path (str): Path to the testing labels CSV file.
-
+        model: Trained LSTM model.
+        X_test_scaled: Scaled test features, shaped for LSTM input.
     Returns:
-        predictions: Predictions made on the test dataset.
+        np.ndarray: Predicted values.
     """
-    # Load test data
-    print("[INFO] Loading test data for prediction preview...")
-    X_test = pd.read_csv(X_test_path)
-    y_test = pd.read_csv(y_test_path)
-
-    # Ensure X_test contains only numeric data
-    X_test = X_test.select_dtypes(include=[np.number])
-
-    # Convert X_test to a NumPy array and reshape it for LSTM input
-    X_test_scaled = X_test.values.astype(np.float32)  # Ensure the data type is float32
-    X_test_reshaped = X_test_scaled.reshape(X_test_scaled.shape[0], 1, X_test_scaled.shape[1])
-
-    # Generate predictions
-    print("[INFO] Generating predictions with the LSTM model...")
-    predictions = lstm_model.predict(X_test_reshaped)
-
-    # Display sample predictions
-    print("\n[INFO] LSTM Sample Predictions vs Actual:")
-    for i in range(min(5, len(predictions))):
-        actual_value = y_test.iloc[i].values if len(y_test.columns) > 1 else [y_test.values[i]]
-        predicted_value = float(predictions[i][0]) if len(predictions[i]) == 1 else predictions[i][0]
-        print(f"Predicted: {predicted_value:.4f} | Actual: {actual_value[0]}")
-
-    return predictions
+    return model.predict(X_test_scaled)

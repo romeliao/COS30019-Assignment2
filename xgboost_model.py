@@ -69,7 +69,7 @@ def train_xgboost_model(X_train_path, y_train_path, X_test_path, y_test_path, ou
     # Dynamically determine the metric name for plotting
     metric_name = eval_metric.upper()  # Convert to uppercase for better readability
 
-    # Plot training and validation metrics
+    # 1. Model Training Curve
     print(f"[INFO] Plotting training and validation {metric_name}...")
     plt.figure(figsize=(10, 6))
     epochs = range(1, len(results['validation_0'][eval_metric]) + 1)
@@ -80,14 +80,26 @@ def train_xgboost_model(X_train_path, y_train_path, X_test_path, y_test_path, ou
     plt.ylabel(metric_name)
     plt.legend()
     plt.grid()
+    plt.tight_layout()
     plt.show()
 
     # Generate predictions
     predictions = model.predict(X_test)
 
+    # 3. Training vs Test Metric Comparison
+    final_train_metric = results['validation_0'][eval_metric][-1]
+    final_val_metric = results['validation_1'][eval_metric][-1]
+    plt.figure(figsize=(6, 5))
+    plt.bar(['Train', 'Test'], [final_train_metric, final_val_metric], color=['skyblue', 'salmon'])
+    plt.ylabel(metric_name)
+    plt.title(f"Final {metric_name}: Train vs Test")
+    plt.tight_layout()
+    plt.show()
+
     # Check for NaN or infinite values in predictions
     if np.any(np.isnan(predictions)) or np.any(np.isinf(predictions)):
         raise ValueError("Predictions contain NaN or infinite values.")
+        
 
     # Evaluate the model
     mse = mean_squared_error(y_test, predictions)

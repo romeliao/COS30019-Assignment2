@@ -192,5 +192,5 @@ class GRUModel:
 
         # Print converted to minutes
         for i, (path, total_seconds) in enumerate(routes, 1):
-            print(f"Route {i}: {' → '.join(path)} | Time: {total_seconds / 60:.1f} mins")
+            print(f"Route {i}: {' -> '.join(path)} | Time: {total_seconds / 60:.1f} mins")
         return routes

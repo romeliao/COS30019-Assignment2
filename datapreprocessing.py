@@ -57,12 +57,20 @@ def preprocess_data(spreadsheet_path, output_dir, traffic_data_path):
     X = data.drop(columns=v_columns)  # Remove V00-V95 from features
 
     # Optional: Remove rows where target is invalid (e.g., all 0s or NaN)
-    valid_rows = y.notnull().all(axis=1)
-    X = X[valid_rows]
-    y = y[valid_rows]
+    valid_rows = y.notnull().all(axis=1)  # Ensure all target columns have valid values
+    X = X[valid_rows].reset_index(drop=True)  # Reset index after filtering
+    y = y[valid_rows].reset_index(drop=True)
+
+    # Debug: Print shapes of X and y
+    print(f"[DEBUG] Features (X) shape after filtering: {X.shape}")
+    print(f"[DEBUG] Targets (y) shape after filtering: {y.shape}")
 
     # Split into train/test
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=52)
+
+    # Debug: Print shapes of train/test splits
+    print(f"[DEBUG] X_train shape: {X_train.shape}, y_train shape: {y_train.shape}")
+    print(f"[DEBUG] X_test shape: {X_test.shape}, y_test shape: {y_test.shape}")
 
     # Save original (unscaled) features
     os.makedirs(output_dir, exist_ok=True)

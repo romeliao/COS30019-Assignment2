@@ -30,4 +30,4 @@ def travel_time(self, distance, predicted_flow):
     
     seconds = time * 3600 + 30
     
-    return time_seconds, avg_speed
+    return time,seconds, avg_speed

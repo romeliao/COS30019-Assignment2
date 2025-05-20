@@ -1,12 +1,20 @@
 import os
 import pandas as pd
+import numpy as np
 from datapreprocessing import preprocess_data
 from LSTM import train_lstm_model, generate_lstm_predictions
-from xgboost_model import train_xgboost_model
+from xgboost_model import train_xgboost_model, load_scats_coordinates, predict_flows_for_scats, build_scats_graph, find_optimal_routes
 from gru import GRUModel
 from AStar import a_star_search, nx_to_edge, get_coords
+from sklearn.preprocessing import MinMaxScaler
+
 
 if __name__ == "__main__":
+
+    # Origin and destination SCATS sites
+    Origin = "3122"
+    Destination = "4040"
+
     # Define the input spreadsheet path, traffic data path, and output directory
     base_dir = os.path.dirname(os.path.abspath(__file__))
     spreadsheet_path = os.path.join(base_dir, "Scats Data October 2006.xls")
@@ -38,19 +46,6 @@ if __name__ == "__main__":
             print(f"[ERROR] Missing required dataset: {path}")
             exit(1)
 
-    # Train the LSTM model and show sample predictions
-    print("[INFO] Training the LSTM model...")
-    try:
-        lstm_model = train_lstm_model(X_train_path, y_train_path, X_test_path, y_test_path, output_dir)
-    except Exception as e:
-        print(f"[ERROR] LSTM model training failed: {e}")
-    else:
-        # Generate predictions using the trained LSTM model
-        try:
-            predictions = generate_lstm_predictions(lstm_model, X_test_path, y_test_path)
-        except Exception as e:
-            print(f"[ERROR] Failed to generate predictions: {e}")
-
     # Train the XGBoost model and save predictions
     print("[INFO] Training the XGBoost model...")
     try:
@@ -72,7 +67,7 @@ if __name__ == "__main__":
         print(xgb_predictions_df.head())
 
     except Exception as e:
-        print(f"[ERROR] XGBoost model training failed: {e}")
+        print(f"[ERROR] XGBoost model training or route optimization failed: {e}")
 
     # Train the GRU model and save predictions
     print("[INFO] Training the GRU model...")
@@ -80,7 +75,7 @@ if __name__ == "__main__":
         model = GRUModel()
         X_train, y_train, X_test, y_test, scats_test = model.load_and_prepare_data(output_dir)
 
-        #model training
+        # Model training
         model.train(X_train, y_train, epochs=10, batch_size=64)
 
         mse, mae = model.evaluate(X_test, y_test)
@@ -88,8 +83,9 @@ if __name__ == "__main__":
 
         model.save_model(os.path.join(base_dir, "traffic_gru_model.keras"))
 
-        optimal travel route and time
-        scats_sites = ["3122", "4040"]
+        # Optimal travel route and time
+
+        scats_sites = [Origin, Destination]
         predicted_flows = model.predict_flows_for_scats(scats_sites, X_test, scats_test)
 
         scats_data = model.load_scats_coordinates(os.path.join(output_dir, "X_test.csv"))
@@ -97,13 +93,13 @@ if __name__ == "__main__":
         predicted_flows = {str(k): v for k, v in predicted_flows.items()}
 
         graph = model.build_scats_graph(scats_data, predicted_flows)
-        best_routes = model.find_optimal_routes(graph, "3122", "4040", k=3)
-        
-        #astar
+        best_routes = model.find_optimal_routes(graph, Origin, Destination, k=5)
+
+        # A* search
         edges = nx_to_edge(graph)
         coords = get_coords(scats_data)
-        origin = "3122"
-        destinations = {"4040"}
+        origin = Origin
+        destinations = {Destination}
 
         path, nodes_created = a_star_search(origin, destinations, edges, coords)
         print("A* Path:", path)
