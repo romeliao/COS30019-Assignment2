@@ -134,31 +134,33 @@ class LSTMModel:
         return scats_data
 
     def flow_to_speed(self, flow):
+        """Convert traffic flow to speed in km/h."""
         if flow <= 1800:
-            speed = 50 - (flow / 60)
+            speed = 50 - (flow / 60)  # Decrease speed as flow increases
         else:
-            speed = 20 - (flow - 1800) / 100
-        return min(max(speed, 5), 60)
+            speed = 20 - (flow - 1800) / 100  # Further decrease for high flow
+        return max(speed, 5)  # Ensure a minimum speed of 5 km/h
 
     def calculate_travel_time(self, distance_km, predicted_flow):
-        speed = self.flow_to_speed(predicted_flow)
-        return (distance_km / speed) * 3600 + 30
+        """Calculate travel time in minutes based on distance and flow."""
+        speed = self.flow_to_speed(predicted_flow)  # Speed in km/h
+        travel_time = (distance_km / speed) * 60  # Convert hours to minutes
+        return travel_time
 
     def predict_flows_for_scats(self, scats_sites, X_test, scats_test):
         flows = {}
         scats_test = np.array(scats_test).astype(str)
-
+        
         for scats in scats_sites:
             mask = scats_test == scats
             if not np.any(mask):
-                flows[scats] = 500
+                flows[scats] = 500  # Default flow value
                 continue
 
             X_scats = X_test[mask]
-            preds = [self.model.predict(X_scats[i:i+1], verbose=0)[0][0] for i in range(len(X_scats))]
-            mean_pred_scaled = np.mean(preds).reshape(-1, 1)
-            flows[scats] = self.scaler.inverse_transform(mean_pred_scaled)[0, 0]
-
+            preds = self.model.predict(X_scats)
+            mean_pred = np.mean(preds).reshape(-1, 1)
+            flows[scats] = max(0, self.scaler.inverse_transform(mean_pred)[0, 0])  # Clamp to non-negative
         return flows
 
     def haversine(self, lat1, lon1, lat2, lon2):

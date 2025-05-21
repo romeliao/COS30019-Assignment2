@@ -13,7 +13,7 @@ class XGBoostModel:
         self.timesteps = timesteps
         self.model = XGBRegressor(n_estimators=100, learning_rate=0.1, max_depth=6)
         self.scaler = MinMaxScaler()
-    
+
     def load_and_prepare_data(self, data_dir):
         X = pd.read_csv(os.path.join(data_dir, "X_train.csv"))
         y = pd.read_csv(os.path.join(data_dir, "y_train.csv"))
@@ -43,10 +43,20 @@ class XGBoostModel:
         scats_test = scats_numbers.values[split:]
         
         return X_train, y_train, X_test, y_test, scats_test
-    
+
     def train(self, X_train, y_train):
         self.model.fit(X_train, y_train)
-    
+
+    def save_model(self, filepath):
+        """Save the trained XGBoost model to a file."""
+        self.model.save_model(filepath)
+        print(f"[INFO] XGBoost model saved to {filepath}")
+
+    def load_model(self, filepath):
+        """Load a pre-trained XGBoost model from a file."""
+        self.model.load_model(filepath)
+        print(f"[INFO] XGBoost model loaded from {filepath}")
+
     def evaluate(self, X_test, y_test, X_train=None, y_train=None):
         preds_test = self.model.predict(X_test)
         preds_test_inv = self.scaler.inverse_transform(preds_test.reshape(-1, 1)).flatten()
@@ -99,7 +109,7 @@ class XGBoostModel:
             flows[scats] = self.scaler.inverse_transform(mean_pred)[0, 0]
 
         return flows
-    
+
     def flow_to_speed(self, flow):
         if flow <= 1800:
             speed = 50 - (flow / 60)
