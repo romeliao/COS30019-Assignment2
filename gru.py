@@ -198,9 +198,9 @@ class GRUModel:
                     G.add_edge(origin, dest, weight = travel_time)  # Weight in seconds
         return G
     
-    def find_optimal_routes(self, graph, origin_scats, dest_scats, k = 3):
+    def find_optimal_routes(self, graph, origin_scats, dest_scats, k=3):
         routes = []
-        for path in nx.shortest_simple_paths(graph, origin_scats, dest_scats, weight = "weight"):
+        for path in nx.shortest_simple_paths(graph, origin_scats, dest_scats, weight="weight"):
             total_time = sum(graph[path[i]][path[i+1]]['weight'] for i in range(len(path)-1))
             routes.append((path, total_time))
             if len(routes) == k:
@@ -208,5 +208,5 @@ class GRUModel:
 
         # Print converted to minutes
         for i, (path, total_seconds) in enumerate(routes, 1):
-            print(f"Route {i}: {' → '.join(path)} | Time: {total_seconds / 60:.1f} mins")
+            print(f"Route {i}: {' -> '.join(path)} | Time: {total_seconds / 60:.1f} mins")
         return routes

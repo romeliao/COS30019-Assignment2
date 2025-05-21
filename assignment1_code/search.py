@@ -2,7 +2,7 @@ import sys
 from gbfs import gbfs
 from bfs import bfs, trace_path as trace_bfs_path
 from dfs import dfs, trace_path as trace_dfs_path
-from AStar import a_star_search
+from search_algorithms.AStar import a_star_search
 from HillClimbing import hill_climbing_search
 from dls import dls
 

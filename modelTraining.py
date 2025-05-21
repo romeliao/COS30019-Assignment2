@@ -7,7 +7,7 @@ from datapreprocessing import preprocess_data
 from LSTM import LSTMModel
 from xgboost_model import XGBoostModel
 from gru import GRUModel
-from AStar import a_star_search, nx_to_edge, get_coords
+from search_algorithms.AStar import a_star_search, nx_to_edge, get_coords
 
 if __name__ == "__main__":
 
@@ -123,17 +123,21 @@ if __name__ == "__main__":
         model = GRUModel()
         X_train, y_train, X_test, y_test, scats_test = model.load_and_prepare_data(output_dir)
 
-        #model training
+        # Model training
         model.train(X_train, y_train, epochs=10, batch_size=64)
 
-        mse, mae = model.evaluate(X_test, y_test)
-        print(f"MSE: {mse:.2f}, MAE: {mae:.2f}")
+        # Evaluate the model
+        mse, mae = model.evaluate(X_test, y_test, X_train, y_train)
+        print(f"[GRU] MSE: {mse:.2f}, MAE: {mae:.2f}")
 
+        # Save the trained model
         model.save_model(os.path.join(models_dir, "traffic_gru_model.keras"))
 
-        scats_sites = [Origin,  Destination]
+        # Predict flows for SCATS sites
+        scats_sites = [Origin, Destination]
         predicted_flows = model.predict_flows_for_scats(scats_sites, X_test, scats_test)
 
+        # Load SCATS coordinates and build the graph
         scats_data = model.load_scats_coordinates(os.path.join(output_dir, "X_test.csv"))
         scats_data = {str(k): v for k, v in scats_data.items()}
         predicted_flows = {str(k): v for k, v in predicted_flows.items()}
@@ -141,15 +145,15 @@ if __name__ == "__main__":
         graph = model.build_scats_graph(scats_data, predicted_flows)
         best_routes = model.find_optimal_routes(graph, Origin, Destination, k=5)
 
-        # A* search
+        # Perform A* search
         edges = nx_to_edge(graph)
         coords = get_coords(scats_data)
         origin = Origin
         destinations = {Destination}
 
         path, nodes_created = a_star_search(origin, destinations, edges, coords)
-        print("A* Path:", path)
-        print("Nodes Created:", nodes_created)
+        print("[GRU] A* Path:", path)
+        print("[GRU] Nodes Created:", nodes_created)
     except Exception as e:
         print(f"[ERROR] GRU model training or prediction failed: {e}")
         

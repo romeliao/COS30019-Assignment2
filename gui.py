@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from LSTM import LSTMModel
 from xgboost_model import XGBoostModel
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from AStar import a_star_search, nx_to_edge, get_coords
+from search_algorithms.AStar import a_star_search, nx_to_edge, get_coords
 from gru import GRUModel
 
 # Optional additional search models
