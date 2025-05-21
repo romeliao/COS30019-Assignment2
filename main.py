@@ -119,18 +119,22 @@ if __name__ == "__main__":
     # Train the GRU model and save predictions
     print("[INFO] Training the GRU model...")
     try:
-        model = GRUModel()
+       model = GRUModel()
         X_train, y_train, X_test, y_test, scats_test = model.load_and_prepare_data(output_dir)
 
         #model training
-        model.train(X_train, y_train, epochs=10, batch_size=64)
+        model.train(X_train, y_train, epochs=50, batch_size=64)
+        
+        #use if a model is already present to prevent retraining
+        # model.load_model(os.path.join(base_dir, "best_model.keras"))
 
-        mse, mae = model.evaluate(X_test, y_test)
+        mse, mae = model.evaluate(X_test, y_test, X_train, y_train)
         print(f"MSE: {mse:.2f}, MAE: {mae:.2f}")
 
-        model.save_model(os.path.join(models_dir, "traffic_gru_model.keras"))
+        model.save_model(os.path.join(base_dir, "traffic_gru_model.keras"))
 
-        scats_sites = [Origin,  Destination]
+        #optimal travel route and time
+        scats_sites = ["3122", "4040"]
         predicted_flows = model.predict_flows_for_scats(scats_sites, X_test, scats_test)
 
         scats_data = model.load_scats_coordinates(os.path.join(output_dir, "X_test.csv"))
@@ -138,13 +142,13 @@ if __name__ == "__main__":
         predicted_flows = {str(k): v for k, v in predicted_flows.items()}
 
         graph = model.build_scats_graph(scats_data, predicted_flows)
-        best_routes = model.find_optimal_routes(graph, Origin, Destination, k=5)
-
-        # A* search
+        best_routes = model.find_optimal_routes(graph, "3122", "4040", k=3)
+        
+        #astar
         edges = nx_to_edge(graph)
         coords = get_coords(scats_data)
-        origin = Origin
-        destinations = {Destination}
+        origin = "3122"
+        destinations = {"4040"}
 
         path, nodes_created = a_star_search(origin, destinations, edges, coords)
         print("A* Path:", path)
