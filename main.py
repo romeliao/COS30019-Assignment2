@@ -12,8 +12,8 @@ if __name__ == "__main__":
 
     # Optimal travel route and time
     # Origin and destination SCATS sites
-    Origin = "3122"
-    Destination = "4040"
+    Origin = "2000"
+    Destination = "4035"
 
     # Define the input spreadsheet path, traffic data path, and output directory
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -82,39 +82,39 @@ if __name__ == "__main__":
         print("[LSTM] Nodes Created:", nodes_created)
 
     except Exception as e:
-        print(f"[ERROR] LSTM model training or prediction failed: {e}")
+            print(f"[ERROR] LSTM model training or prediction failed: {e}")
 
-# XGBoost Section
-print("[INFO] Training the XGBoost model...")
-try:
-    xgb_model = XGBoostModel(timesteps=96)  # Include timesteps here
-    X_train, y_train, X_test, y_test, scats_test = xgb_model.load_and_prepare_data(output_dir)
+    # XGBoost Section
+    print("[INFO] Training the XGBoost model...")
+    try:
+        xgb_model = XGBoostModel(timesteps=96)  # Include timesteps here
+        X_train, y_train, X_test, y_test, scats_test = xgb_model.load_and_prepare_data(output_dir)
 
-    xgb_model.train(X_train, y_train)
+        xgb_model.train(X_train, y_train)
 
-    # Updated evaluation with diagrams
-    mse, mae = xgb_model.evaluate(X_test, y_test, X_train, y_train)
-    print(f"[XGBoost] MSE: {mse:.2f}, MAE: {mae:.2f}")
+        # Updated evaluation with diagrams
+        mse, mae = xgb_model.evaluate(X_test, y_test, X_train, y_train)
+        print(f"[XGBoost] MSE: {mse:.2f}, MAE: {mae:.2f}")
 
-    scats_sites = [Origin, Destination]
-    predicted_flows = xgb_model.predict_flows_for_scats(scats_sites, X_test, scats_test)
+        scats_sites = [Origin, Destination]
+        predicted_flows = xgb_model.predict_flows_for_scats(scats_sites, X_test, scats_test)
 
-    scats_data = xgb_model.load_scats_coordinates(X_test_path)
-    scats_data = {str(k): v for k, v in scats_data.items()}
-    predicted_flows = {str(k): v for k, v in predicted_flows.items()}
+        scats_data = xgb_model.load_scats_coordinates(X_test_path)
+        scats_data = {str(k): v for k, v in scats_data.items()}
+        predicted_flows = {str(k): v for k, v in predicted_flows.items()}
 
-    graph = xgb_model.build_scats_graph(scats_data, predicted_flows)
-    best_routes = xgb_model.find_optimal_routes(graph, Origin, Destination, k=5)
+        graph = xgb_model.build_scats_graph(scats_data, predicted_flows)
+        best_routes = xgb_model.find_optimal_routes(graph, Origin, Destination, k=5)
 
-    # A* search
-    edges = nx_to_edge(graph)
-    coords = get_coords(scats_data)
-    path, nodes_created = a_star_search(Origin, {Destination}, edges, coords)
-    print("[XGBoost] A* Path:", path)
-    print("[XGBoost] Nodes Created:", nodes_created)
+        # A* search
+        edges = nx_to_edge(graph)
+        coords = get_coords(scats_data)
+        path, nodes_created = a_star_search(Origin, {Destination}, edges, coords)
+        print("[XGBoost] A* Path:", path)
+        print("[XGBoost] Nodes Created:", nodes_created)
 
-except Exception as e:
-    print(f"[ERROR] XGBoost model training or prediction failed: {e}")
+    except Exception as e:
+        print(f"[ERROR] XGBoost model training or prediction failed: {e}")
 
     # Train the GRU model and save predictions
     print("[INFO] Training the GRU model...")
@@ -149,7 +149,6 @@ except Exception as e:
         path, nodes_created = a_star_search(origin, destinations, edges, coords)
         print("A* Path:", path)
         print("Nodes Created:", nodes_created)
-
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"[ERROR] GRU model training or prediction failed: {e}")
         
