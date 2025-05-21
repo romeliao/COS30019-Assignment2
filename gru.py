@@ -11,6 +11,7 @@ from tensorflow.keras.layers import GRU, Dense, Dropout, Input
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.keras.optimizers import Adam
 from math import radians, sin, cos, sqrt, atan2
+from tensorflow.keras.models import load_model as keras_load_model
         
 class GRUModel:
     #initialising instances of the model 
@@ -38,8 +39,7 @@ class GRUModel:
         
     def train(self, X_train, y_train, epochs = 100, batch_size = 32, validation_split = 0.1):
         #monitoring algorithms to prevent stalling and saves the best model
-        callbacks = [EarlyStopping(patience = 15, restore_best_weights = True), 
-                     ModelCheckpoint("models",'best_model.keras', save_best_only = True)]
+        callbacks = [EarlyStopping(patience = 15, restore_best_weights = True), ModelCheckpoint('best_model.keras', save_best_only = True)]
         
         #plots training validation
         history = self.model.fit(X_train, y_train, epochs = epochs, batch_size = batch_size, validation_split = validation_split, callbacks = callbacks, verbose = 1)
@@ -51,16 +51,22 @@ class GRUModel:
         plt.legend()
         plt.show()
     
-    def evaluate(self, X_test, y_test):
-        predictions = self.model.predict(X_test, verbose = 0)
+    def evaluate(self, X_test, y_test, X_train, y_train):
+        predictions = self.model.predict(X_test)
 
         # inverses the test
-        predictions_inv = self.scaler.inverse_transform(predictions.reshape(-1, 1))
-        y_test_inv = self.scaler.inverse_transform(y_test.reshape(-1, 1))
+        predictions_inv = self.scaler.inverse_transform(predictions.reshape(-1, 1)).flatten()
+        y_test_inv = self.scaler.inverse_transform(y_test.reshape(-1, 1)).flatten()
+        mae_test = mean_absolute_error(y_test_inv, predictions_inv)
         
         # margin of error calculations
         mse = mean_squared_error(y_test_inv, predictions_inv)
         mae = mean_absolute_error(y_test_inv, predictions_inv)
+        
+        preds_train = self.model.predict(X_train, verbose=0)
+        preds_train_inv = self.scaler.inverse_transform(preds_train.reshape(-1, 1)).flatten()
+        y_train_inv = self.scaler.inverse_transform(y_train.reshape(-1, 1)).flatten()
+        mae_train = mean_absolute_error(y_train_inv, preds_train_inv)
         
         # Plot first sample (reshape back to original timesteps)
         plt.figure(figsize = (15, 5))
@@ -70,6 +76,12 @@ class GRUModel:
         plt.ylabel('Flow')
         plt.xlabel('Time Steps')
         plt.legend()
+        plt.show()
+        
+        plt.figure(figsize=(6, 6))
+        plt.bar(['Train', 'Test'], [mae_train, mae_test], color=['blue', 'orange'])
+        plt.title('Final MAE: Train vs Test')
+        plt.ylabel('MAE')
         plt.show()
     
         return mse, mae
@@ -84,7 +96,7 @@ class GRUModel:
         # Standardize column name
         X_train = X_train.rename(columns={scats_col: 'SCATS_Number'}) #CHECK HERE IF FAIL
         scats_numbers = X_train['SCATS_Number'].copy()
-        
+
         # Process features
         if 'Date' in X_train.columns:
             X_train['Date'] = pd.to_datetime(X_train['Date'])
@@ -118,6 +130,9 @@ class GRUModel:
     
     def save_model(self, filepath):
         self.model.save(filepath)
+        
+    def load_model(self, filepath):
+        self.model = keras_load_model(filepath)
     
     def load_scats_coordinates(self, test_csv_path):
         df_test = pd.read_csv(test_csv_path)
@@ -137,9 +152,9 @@ class GRUModel:
             speed = 20 - (flow - 1800) / 100
         return min(max(speed, 5), 60)
 
-    def calculate_travel_time(self, distanceance_km, predicted_flow):
+    def calculate_travel_time(self, distance_km, predicted_flow):
         speed = self.flow_to_speed(predicted_flow)
-        travel_time = (distanceance_km / speed)
+        travel_time = (distance_km / speed)
         return  travel_time * 3600 + 30   # 30s intersection delay
     
     def predict_flows_for_scats(self, scats_sites, X_test, scats_test):
@@ -193,5 +208,5 @@ class GRUModel:
 
         # Print converted to minutes
         for i, (path, total_seconds) in enumerate(routes, 1):
-            print(f"Route {i}: {' -> '.join(path)} | Time: {total_seconds / 60:.1f} mins")
+            print(f"Route {i}: {' → '.join(path)} | Time: {total_seconds / 60:.1f} mins")
         return routes
