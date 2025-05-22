@@ -33,3 +33,14 @@ def hill_climbing_search(origin, destinations, edges, nodes):
         nodes_created += 1
     
     return path, nodes_created
+
+def nx_to_edge(graph):
+    edges = {}
+    for u, v, data in graph.edges(data=True):
+        cost = data["weight"]
+        edges.setdefault(u, []).append((v, cost))
+        edges.setdefault(v, []).append((u, cost))
+    return edges
+
+def get_coords(scats_data):
+    return {scats: (info["Latitude"], info["Longitude"]) for scats, info in scats_data.items()}

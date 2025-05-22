@@ -7,11 +7,11 @@ import matplotlib.pyplot as plt
 from LSTM import LSTMModel
 from xgboost_model import XGBoostModel
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from search_algorithms.AStar import a_star_search, nx_to_edge, get_coords
 from gru import GRUModel
-
+from search_algorithms.AStar import a_star_search, nx_to_edge, get_coords
+from search_algorithms.HillClimbing import hill_climbing_search
 # Optional additional search models
-from assignment1_code import bfs, dfs, dls, gbfs, HillClimbing
+from search_algorithms import bfs, dfs, dls, gbfs
 
 class TBRGS_GUI:
     def __init__(self, master):
@@ -20,6 +20,14 @@ class TBRGS_GUI:
 
         # Load defaults from config
         self.config = self.load_config()
+
+        scats_sites = [
+            "2000", "3122", "4040", "3120", "4321", "3812", "2200", "970", "2846",
+            "4264", "4270", "4032", "4335", "3682", "2825", "4063", "4821", "3180",
+            "3685", "3127", "4266", "3001", "2827", "4051", "4057", "2820", "4272",
+            "4273", "4324", "4263", "3002", "3804", "4043", "3126", "4262", "3662",
+            "4030", "4812"
+        ]
 
         # Input fields
         ttk.Label(master, text="Select ML Model:").grid(row=0, column=0, sticky='w')
@@ -33,14 +41,14 @@ class TBRGS_GUI:
         self.search_box.grid(row=1, column=1)
 
         ttk.Label(master, text="Origin SCATS Site:").grid(row=2, column=0, sticky='w')
-        self.origin_entry = ttk.Entry(master)
-        self.origin_entry.insert(0, self.config.get("origin", "3122"))
-        self.origin_entry.grid(row=2, column=1)
+        self.origin_combo = ttk.Combobox(master, values=scats_sites, state='readonly')
+        self.origin_combo.set(self.config.get("origin", "3122"))
+        self.origin_combo.grid(row=2, column=1)
 
         ttk.Label(master, text="Destination SCATS Site:").grid(row=3, column=0, sticky='w')
-        self.dest_entry = ttk.Entry(master)
-        self.dest_entry.insert(0, self.config.get("destination", "4040"))
-        self.dest_entry.grid(row=3, column=1)
+        self.dest_combo = ttk.Combobox(master, values=scats_sites, state='readonly')
+        self.dest_combo.set(self.config.get("destination", "4040"))
+        self.dest_combo.grid(row=3, column=1)
 
         ttk.Label(master, text="Time of Day (0–23):").grid(row=4, column=0, sticky='w')
         self.time_entry = ttk.Entry(master)
@@ -70,8 +78,8 @@ class TBRGS_GUI:
             return {}
 
     def run_routing(self):
-        origin = self.origin_entry.get().strip()
-        destination = self.dest_entry.get().strip()
+        origin = self.origin_combo.get().strip()
+        destination = self.dest_combo.get().strip()
         time_of_day = int(self.time_entry.get())
         k = int(self.k_entry.get())
         model_choice = self.model_var.get()
@@ -135,16 +143,44 @@ class TBRGS_GUI:
             self.output_text.insert(tk.END, f"[INFO] Performing {search_choice} search...\n")
             if search_choice == "AStar":
                 path, nodes_created = a_star_search(origin, {destination}, edges, coords)
+                
             elif search_choice == "BFS":
-                path = bfs.bfs(origin, destination, edges)
+                end_step, _ = bfs.bfs(origin, {destination}, edges)  # assuming bfs returns a Step
+                if end_step:
+                    path = bfs.trace_path(end_step)  # convert Step to path list
+                else:
+                    self.output_text.insert(tk.END, "[ERROR] No path found with BFS.\n")
+                    return
+
             elif search_choice == "DFS":
-                path = dfs.dfs(origin, destination, edges)
+                end_step, expanded = dfs.dfs(origin, {destination}, edges)
+                if end_step:
+                    path = dfs.trace_path(end_step)
+                else:
+                    self.output_text.insert(tk.END, "[ERROR] No path found with DFS.\n")
+                    return
+                
             elif search_choice == "DLS":
-                path = dls.dls(origin, destination, edges)
+                depth_limit = 10  # Or get from config/input
+                goal_set = {destination}
+                result, expanded, path = dls.dls(origin, goal_set, edges, depth_limit)
+                if result is None:
+                    self.output_text.insert(tk.END, "[ERROR] No path found with DLS.\n")
+                    return
+
             elif search_choice == "GBFS":
-                path = gbfs.gbfs(origin, destination, edges, coords)
+                result = gbfs.gbfs(origin, {destination}, edges, coords)  # pass set of goals
+                if result is None:
+                    self.output_text.insert(tk.END, "[ERROR] No path found with GBFS.\n")
+                    return
+                _, _, path = result  # unpack: goal, visited count, path
+
             elif search_choice == "HillClimbing":
-                path = HillClimbing.hill_climb(origin, destination, edges, coords)
+                path, nodes_created = hill_climbing_search(origin, {destination}, edges, coords)
+                if path is None:
+                    self.output_text.insert(tk.END, "[ERROR] No path found with Hill Climbing.\n")
+                    return
+
             else:
                 raise ValueError("Unsupported search algorithm")
 

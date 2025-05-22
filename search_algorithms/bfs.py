@@ -41,3 +41,16 @@ def trace_path(end_step):
         path.append(end_step.id)
         end_step = end_step.parent
     return path[::-1]
+
+# Utility: Convert NetworkX graph to edge dictionary
+def nx_to_edge(graph):
+    edges = {}
+    for u, v, data in graph.edges(data=True):
+        cost = data["weight"]
+        edges.setdefault(u, []).append((v, cost))
+        edges.setdefault(v, []).append((u, cost))  # Assume undirected graph
+    return edges
+
+# Utility: Extract coordinates from SCATS metadata
+def get_coords(scats_data):
+    return {scats: (info["Latitude"], info["Longitude"]) for scats, info in scats_data.items()}
