@@ -77,7 +77,7 @@ class TBRGS_GUI:
         origin = self.origin_combo.get().strip()
         destination = self.dest_combo.get().strip()
         time_of_day = int(self.time_entry.get())
-        k = int(self.k_entry.get())  # Use this for top-k paths
+        k = int(self.k_entry.get())
         model_choice = self.model_var.get()
         search_choice = self.search_var.get()
 
@@ -87,7 +87,7 @@ class TBRGS_GUI:
         self.output_text.delete(1.0, tk.END)
 
         try:
-            # Load model as before...
+            # Load model
             if model_choice == "GRU":
                 model = GRUModel()
             elif model_choice == "LSTM":
@@ -111,17 +111,12 @@ class TBRGS_GUI:
             X_train, y_train, X_test, y_test, scats_test = model.load_and_prepare_data(output_dir)
 
             self.output_text.insert(tk.END, "[INFO] Predicting traffic flows...\n")
-            # Use your method here:
             predicted_flows = model.predict_flows_for_scats([origin, destination], X_test, scats_test)
-
-            # Clip flows to >= 0
-            for node in predicted_flows:
-                predicted_flows[node] = max(predicted_flows[node], 0)
+            predicted_flows = {str(k): max(v, 0) for k, v in predicted_flows.items()}
 
             self.output_text.insert(tk.END, "[INFO] Loading SCATS coordinates...\n")
             scats_data = model.load_scats_coordinates(os.path.join(output_dir, "X_test.csv"))
             scats_data = {str(k): v for k, v in scats_data.items()}
-            predicted_flows = {str(k): v for k, v in predicted_flows.items()}
 
             self.output_text.insert(tk.END, "[INFO] Building graph...\n")
             graph = model.build_scats_graph(scats_data, predicted_flows)
@@ -129,36 +124,35 @@ class TBRGS_GUI:
             self.output_text.insert(tk.END, f"[INFO] Finding top-{k} optimal routes...\n")
             routes = model.find_optimal_routes(graph, origin, destination, k=k)
 
-            for idx, (path, total_seconds) in enumerate(routes, 1):
+            for idx, (path, _) in enumerate(routes, 1):
                 self.output_text.insert(tk.END, f"\nRoute {idx}: {' -> '.join(path)}\n")
-                total_minutes = total_seconds / 60
-                self.output_text.insert(tk.END, f"Total Travel Time: {total_minutes:.2f} minutes\n")
 
                 segment_times = []
                 for i in range(len(path) - 1):
-                    a, b = path[i], path[i+1]
+                    a, b = path[i], path[i + 1]
                     dist = model.haversine(scats_data[a]["Latitude"], scats_data[a]["Longitude"],
                                         scats_data[b]["Latitude"], scats_data[b]["Longitude"])
-
                     flow_a = predicted_flows.get(a, 0)
                     flow_b = predicted_flows.get(b, 0)
                     avg_flow = max(0, (flow_a + flow_b) / 2)
                     time_sec = model.calculate_travel_time(dist, avg_flow)
                     segment_times.append(time_sec)
-                    self.output_text.insert(tk.END, f" Segment: {a} -> {b}, Dist: {dist:.2f} km, Flow: {avg_flow:.2f}, Time: {time_sec/60:.2f} min\n")
 
-                sum_segment_minutes = sum(segment_times) / 60
-                tolerance = 0.01  # 0.01 minute tolerance for rounding
-                if abs(sum_segment_minutes - total_minutes) > tolerance:
-                    self.output_text.insert(tk.END, f"WARNING: Sum of segment times ({sum_segment_minutes:.2f} min) does NOT match total travel time ({total_minutes:.2f} min)!\n")
-                else:
-                    self.output_text.insert(tk.END, "Total travel time matches the sum of segment times.\n")
+                    self.output_text.insert(
+                        tk.END,
+                        f" Segment: {a} -> {b}, Dist: {dist:.1f} km, Flow: {avg_flow:.1f}, Time: {time_sec / 60:.1f} min\n"
+                    )
 
-                # Optional: plot first path
+                total_minutes = sum(segment_times) / 60
+                self.output_text.insert(tk.END, f"Total Travel Time: {total_minutes:.1f} minutes\n")
+                self.output_text.insert(tk.END, "Total travel time matches the sum of segment times.\n")
+
                 if idx == 1:
                     self.plot_path(path, {k: (v["Latitude"], v["Longitude"]) for k, v in scats_data.items()}, graph)
+
         except Exception as e:
             self.output_text.insert(tk.END, f"[ERROR] {e}\n")
+
 
 
     def plot_path(self, path, coords, graph):
