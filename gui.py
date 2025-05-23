@@ -129,12 +129,12 @@ class TBRGS_GUI:
             self.output_text.insert(tk.END, f"[INFO] Finding top-{k} optimal routes...\n")
             routes = model.find_optimal_routes(graph, origin, destination, k=k)
 
-            # Display all found routes with details
             for idx, (path, total_seconds) in enumerate(routes, 1):
                 self.output_text.insert(tk.END, f"\nRoute {idx}: {' -> '.join(path)}\n")
-                self.output_text.insert(tk.END, f"Total Travel Time: {total_seconds / 60:.2f} minutes\n")
+                total_minutes = total_seconds / 60
+                self.output_text.insert(tk.END, f"Total Travel Time: {total_minutes:.2f} minutes\n")
 
-                # Print segment details
+                segment_times = []
                 for i in range(len(path) - 1):
                     a, b = path[i], path[i+1]
                     dist = model.haversine(scats_data[a]["Latitude"], scats_data[a]["Longitude"],
@@ -144,12 +144,19 @@ class TBRGS_GUI:
                     flow_b = predicted_flows.get(b, 0)
                     avg_flow = max(0, (flow_a + flow_b) / 2)
                     time_sec = model.calculate_travel_time(dist, avg_flow)
+                    segment_times.append(time_sec)
                     self.output_text.insert(tk.END, f" Segment: {a} -> {b}, Dist: {dist:.2f} km, Flow: {avg_flow:.2f}, Time: {time_sec/60:.2f} min\n")
 
-                # Optional: plot each path separately or just the first
+                sum_segment_minutes = sum(segment_times) / 60
+                tolerance = 0.01  # 0.01 minute tolerance for rounding
+                if abs(sum_segment_minutes - total_minutes) > tolerance:
+                    self.output_text.insert(tk.END, f"WARNING: Sum of segment times ({sum_segment_minutes:.2f} min) does NOT match total travel time ({total_minutes:.2f} min)!\n")
+                else:
+                    self.output_text.insert(tk.END, "Total travel time matches the sum of segment times.\n")
+
+                # Optional: plot first path
                 if idx == 1:
                     self.plot_path(path, {k: (v["Latitude"], v["Longitude"]) for k, v in scats_data.items()}, graph)
-
         except Exception as e:
             self.output_text.insert(tk.END, f"[ERROR] {e}\n")
 
