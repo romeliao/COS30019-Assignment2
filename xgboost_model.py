@@ -111,11 +111,8 @@ class XGBoostModel:
         return flows
 
     def flow_to_speed(self, flow):
-        if flow <= 1800:
-            speed = 50 - (flow / 60)
-        else:
-            speed = 20 - (flow - 1800) / 100
-        return min(max(speed, 5), 60)
+            speed = 50 - (flow / 60)  # Simpler linear relationship
+            return min(max(speed, 5), 60)
 
     def calculate_travel_time(self, distance_km, predicted_flow):
         speed = self.flow_to_speed(predicted_flow)  # km/h
