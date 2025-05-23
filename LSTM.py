@@ -134,66 +134,67 @@ class LSTMModel:
         return scats_data
 
     def flow_to_speed(self, flow):
-        """Convert traffic flow to speed in km/h."""
-        if flow <= 1800:
-            speed = 50 - (flow / 60)  # Decrease speed as flow increases
-        else:
-            speed = 20 - (flow - 1800) / 100  # Further decrease for high flow
-        return max(speed, 5)  # Ensure a minimum speed of 5 km/h
+            if flow <= 1800:  # Adjusted capacity
+                speed = 50 - (flow / 60)  # Simpler linear relationship
+            else:
+                speed = 20 - (flow - 1800) / 100
+            return min(max(speed, 5), 60)
 
     def calculate_travel_time(self, distance_km, predicted_flow):
-        """Calculate travel time in minutes based on distance and flow."""
-        speed = self.flow_to_speed(predicted_flow)  # Speed in km/h
-        travel_time = (distance_km / speed) * 60  # Convert hours to minutes
-        return travel_time
-
-    def predict_flows_for_scats(self, scats_sites, X_test, scats_test):
-        flows = {}
-        scats_test = np.array(scats_test).astype(str)
+            speed = self.flow_to_speed(predicted_flow)
+            travel_time = (distance_km / speed)
+            return  travel_time * 3600 + 30   # 30s intersection delay
         
-        for scats in scats_sites:
-            mask = scats_test == scats
-            if not np.any(mask):
-                flows[scats] = 500  # Default flow value
-                continue
+    def predict_flows_for_scats(self, scats_sites, X_test, scats_test):
+            flows = {}
+            scats_test = np.array(scats_test).astype(str)
 
-            X_scats = X_test[mask]
-            preds = self.model.predict(X_scats)
-            mean_pred = np.mean(preds).reshape(-1, 1)
-            flows[scats] = max(0, self.scaler.inverse_transform(mean_pred)[0, 0])  # Clamp to non-negative
-        return flows
+            for scats in scats_sites:
+                mask = scats_test== scats
+                if not np.any(mask):
+                    flows[scats] = 500  # Default flow if no data
+                    continue
 
+                X_scats = X_test[mask]
+
+                preds = [self.model.predict(X_scats[i:i+1], verbose=0)[0][0] for i in range(len(X_scats))]
+                mean_pred_scaled = np.mean(preds).reshape(-1, 1)
+                flows[scats] = self.scaler.inverse_transform(mean_pred_scaled)[0, 0]
+
+            return flows
+        
     def haversine(self, lat1, lon1, lat2, lon2):
-        R = 6371
-        lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
-        dlat = lat2 - lat1
-        dlon = lon2 - lon1
-        a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
-        c = 2 * atan2(sqrt(a), sqrt(1-a))
-        return R * c
+            R = 6371  # Earth radius in km
+            lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+            dlat = lat2 - lat1
+            dlon = lon2 - lon1
+            a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+            c = 2 * atan2(sqrt(a), sqrt(1-a))
+            return R * c
 
     def build_scats_graph(self, scats_data, predicted_flows):
-        G = nx.Graph()
-        for origin, origin_data in scats_data.items():
-            for dest, dest_data in scats_data.items():
-                if origin != dest:
-                    distance = self.haversine(
-                        origin_data["Latitude"], origin_data["Longitude"],
-                        dest_data["Latitude"], dest_data["Longitude"]
-                    )
-                    flow = predicted_flows.get(dest, 500)
-                    travel_time = self.calculate_travel_time(distance, flow)
-                    G.add_edge(origin, dest, weight=travel_time)
-        return G
-
+            G = nx.Graph()
+            for origin, origin_data in scats_data.items():
+                for dest, dest_data in scats_data.items():
+                    if origin_data != dest:
+                        distance = self.haversine(
+                            origin_data["Latitude"], origin_data["Longitude"],
+                            dest_data["Latitude"], dest_data["Longitude"]
+                        )
+                        flow = predicted_flows.get(dest, 500)
+                        travel_time = self.calculate_travel_time(distance, flow)
+                        G.add_edge(origin, dest, weight = travel_time)  # Weight in seconds
+            return G
+        
     def find_optimal_routes(self, graph, origin_scats, dest_scats, k=3):
-        routes = []
-        for path in nx.shortest_simple_paths(graph, origin_scats, dest_scats, weight="weight"):
-            total_time = sum(graph[path[i]][path[i+1]]['weight'] for i in range(len(path)-1))
-            routes.append((path, total_time))
-            if len(routes) == k:
-                break
+            routes = []
+            for path in nx.shortest_simple_paths(graph, origin_scats, dest_scats, weight="weight"):
+                total_time = sum(graph[path[i]][path[i+1]]['weight'] for i in range(len(path)-1))
+                routes.append((path, total_time))
+                if len(routes) == k:
+                    break
 
-        for i, (path, total_seconds) in enumerate(routes, 1):
-            print(f"Route {i}: {' -> '.join(path)} | Time: {total_seconds / 60:.1f} mins")
-        return routes
+            # Print converted to minutes
+            for i, (path, total_seconds) in enumerate(routes, 1):
+                print(f"Route {i}: {' -> '.join(path)} | Time: {total_seconds / 60:.1f} mins")
+            return routes

@@ -118,9 +118,21 @@ class XGBoostModel:
         return min(max(speed, 5), 60)
 
     def calculate_travel_time(self, distance_km, predicted_flow):
-        speed = self.flow_to_speed(predicted_flow)
-        travel_time = (distance_km / speed) * 3600 + 30  # Seconds
-        return travel_time
+        speed = self.flow_to_speed(predicted_flow)  # km/h
+        travel_time_sec = (distance_km / speed) * 3600 + 30  # seconds (includes overhead)
+        return travel_time_sec
+
+    def print_segment_info(self, origin, dest, distance_km, flow):
+        travel_time_sec = self.calculate_travel_time(distance_km, flow)
+        travel_time_min = travel_time_sec / 60
+        print(f"Segment: {origin} -> {dest}, Distance: {distance_km:.2f} km, Flow: {flow:.2f}, Time: {travel_time_min:.2f} min")
+
+    def print_route_info(self, routes):
+        for i, (path, total_time_sec) in enumerate(routes, 1):
+            total_time_min = total_time_sec / 60
+            hours = int(total_time_min // 60)
+            minutes = int(total_time_min % 60)
+            print(f"Route {i}: {' -> '.join(path)} | Time: {hours} hr {minutes} min")
 
     def load_scats_coordinates(self, test_csv_path):
         df_test = pd.read_csv(test_csv_path)
@@ -160,6 +172,5 @@ class XGBoostModel:
             routes.append((path, total_time))
             if len(routes) == k:
                 break
-        for i, (path, total_sec) in enumerate(routes, 1):
-            print(f"Route {i}: {' -> '.join(path)} | Time: {total_sec/60:.1f} mins")
+        self.print_route_info(routes)
         return routes

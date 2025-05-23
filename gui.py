@@ -10,7 +10,6 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from gru import GRUModel
 from search_algorithms.AStar import a_star_search, nx_to_edge, get_coords
 from search_algorithms.HillClimbing import hill_climbing_search
-# Optional additional search models
 from search_algorithms import bfs, dfs, dls, gbfs
 
 class TBRGS_GUI:
@@ -18,18 +17,15 @@ class TBRGS_GUI:
         self.master = master
         master.title("Traffic-based Route Guidance System (TBRGS)")
 
-        # Load defaults from config
         self.config = self.load_config()
 
         scats_sites = [
-            "2000", "3122", "4040", "3120", "4321", "3812", "2200", "970", "2846",
-            "4264", "4270", "4032", "4335", "3682", "2825", "4063", "4821", "3180",
-            "3685", "3127", "4266", "3001", "2827", "4051", "4057", "2820", "4272",
-            "4273", "4324", "4263", "3002", "3804", "4043", "3126", "4262", "3662",
-            "4030", "4812"
+            "970", "2000", "2200", "2820", "2825", "2827", "2846", "3001", "3002", "3120",
+            "3122", "3126", "3127", "3180", "3662", "3682", "3685", "3804", "3812", "4030",
+            "4032", "4040", "4043", "4051", "4057", "4063", "4262", "4263", "4264", "4266",
+            "4270", "4272", "4273", "4321", "4324", "4335", "4812", "4821"
         ]
 
-        # Input fields
         ttk.Label(master, text="Select ML Model:").grid(row=0, column=0, sticky='w')
         self.model_var = tk.StringVar(value=self.config.get("model", "GRU"))
         self.model_box = ttk.Combobox(master, textvariable=self.model_var, values=["GRU", "LSTM", "XGBoost"])
@@ -81,145 +77,98 @@ class TBRGS_GUI:
         origin = self.origin_combo.get().strip()
         destination = self.dest_combo.get().strip()
         time_of_day = int(self.time_entry.get())
-        k = int(self.k_entry.get())
+        k = int(self.k_entry.get())  # Use this for top-k paths
         model_choice = self.model_var.get()
         search_choice = self.search_var.get()
 
         base_dir = os.path.dirname(os.path.abspath(__file__))
         output_dir = os.path.join(base_dir, "processed_dataset")
-        X_train_path = os.path.join(output_dir, "X_train.csv")
-        y_train_path = os.path.join(output_dir, "y_train.csv")
-        X_test_path = os.path.join(output_dir, "X_test.csv")
-        y_test_path = os.path.join(output_dir, "y_test.csv")
-        models_predictions = os.path.join(base_dir, "models_predictions")
 
         self.output_text.delete(1.0, tk.END)
 
         try:
-            # Initialize the selected model
+            # Load model as before...
             if model_choice == "GRU":
                 model = GRUModel()
             elif model_choice == "LSTM":
                 model = LSTMModel()
             elif model_choice == "XGBoost":
                 model = XGBoostModel()
-                # Train or load the XGBoost model
-                if not os.path.exists(os.path.join(output_dir, "xgboost_model.json")):
+                model_path = os.path.join(output_dir, "xgboost_model.json")
+                if not os.path.exists(model_path):
                     self.output_text.insert(tk.END, "[INFO] Training XGBoost model...\n")
                     X_train, y_train, X_test, y_test, scats_test = model.load_and_prepare_data(output_dir)
                     model.train(X_train, y_train)
-                    model.save_model(os.path.join(output_dir, "xgboost_model.json"))
+                    model.save_model(model_path)
                 else:
-                    self.output_text.insert(tk.END, "[INFO] Loading pre-trained XGBoost model...\n")
-                    model.load_model(os.path.join(output_dir, "xgboost_model.json"))
+                    self.output_text.insert(tk.END, "[INFO] Loading XGBoost model...\n")
+                    model.load_model(model_path)
             else:
                 raise ValueError("Unsupported model choice")
 
             self.output_text.insert(tk.END, f"[INFO] Using {model_choice} model.\n")
-
-            # Load and prepare data
-            self.output_text.insert(tk.END, "[INFO] Loading and preparing data...\n")
+            self.output_text.insert(tk.END, "[INFO] Loading data...\n")
             X_train, y_train, X_test, y_test, scats_test = model.load_and_prepare_data(output_dir)
 
-            # Predict flows for SCATS sites
             self.output_text.insert(tk.END, "[INFO] Predicting traffic flows...\n")
+            # Use your method here:
             predicted_flows = model.predict_flows_for_scats([origin, destination], X_test, scats_test)
 
-            # Load SCATS coordinates
+            # Clip flows to >= 0
+            for node in predicted_flows:
+                predicted_flows[node] = max(predicted_flows[node], 0)
+
             self.output_text.insert(tk.END, "[INFO] Loading SCATS coordinates...\n")
-            scats_data = model.load_scats_coordinates(X_test_path)
+            scats_data = model.load_scats_coordinates(os.path.join(output_dir, "X_test.csv"))
             scats_data = {str(k): v for k, v in scats_data.items()}
             predicted_flows = {str(k): v for k, v in predicted_flows.items()}
 
-            # Build the SCATS graph
-            self.output_text.insert(tk.END, "[INFO] Building SCATS graph...\n")
+            self.output_text.insert(tk.END, "[INFO] Building graph...\n")
             graph = model.build_scats_graph(scats_data, predicted_flows)
 
-            # Convert graph to edges and get coordinates
-            edges = nx_to_edge(graph)
-            coords = get_coords(scats_data)
+            self.output_text.insert(tk.END, f"[INFO] Finding top-{k} optimal routes...\n")
+            routes = model.find_optimal_routes(graph, origin, destination, k=k)
 
-            # Perform the selected search algorithm
-            self.output_text.insert(tk.END, f"[INFO] Performing {search_choice} search...\n")
-            if search_choice == "AStar":
-                path, nodes_created = a_star_search(origin, {destination}, edges, coords)
-                
-            elif search_choice == "BFS":
-                end_step, _ = bfs.bfs(origin, {destination}, edges)  # assuming bfs returns a Step
-                if end_step:
-                    path = bfs.trace_path(end_step)  # convert Step to path list
-                else:
-                    self.output_text.insert(tk.END, "[ERROR] No path found with BFS.\n")
-                    return
+            # Display all found routes with details
+            for idx, (path, total_seconds) in enumerate(routes, 1):
+                self.output_text.insert(tk.END, f"\nRoute {idx}: {' -> '.join(path)}\n")
+                self.output_text.insert(tk.END, f"Total Travel Time: {total_seconds / 60:.2f} minutes\n")
 
-            elif search_choice == "DFS":
-                end_step, expanded = dfs.dfs(origin, {destination}, edges)
-                if end_step:
-                    path = dfs.trace_path(end_step)
-                else:
-                    self.output_text.insert(tk.END, "[ERROR] No path found with DFS.\n")
-                    return
-                
-            elif search_choice == "DLS":
-                depth_limit = 10  # Or get from config/input
-                goal_set = {destination}
-                result, expanded, path = dls.dls(origin, goal_set, edges, depth_limit)
-                if result is None:
-                    self.output_text.insert(tk.END, "[ERROR] No path found with DLS.\n")
-                    return
+                # Print segment details
+                for i in range(len(path) - 1):
+                    a, b = path[i], path[i+1]
+                    dist = model.haversine(scats_data[a]["Latitude"], scats_data[a]["Longitude"],
+                                        scats_data[b]["Latitude"], scats_data[b]["Longitude"])
 
-            elif search_choice == "GBFS":
-                result = gbfs.gbfs(origin, {destination}, edges, coords)  # pass set of goals
-                if result is None:
-                    self.output_text.insert(tk.END, "[ERROR] No path found with GBFS.\n")
-                    return
-                _, _, path = result  # unpack: goal, visited count, path
+                    flow_a = predicted_flows.get(a, 0)
+                    flow_b = predicted_flows.get(b, 0)
+                    avg_flow = max(0, (flow_a + flow_b) / 2)
+                    time_sec = model.calculate_travel_time(dist, avg_flow)
+                    self.output_text.insert(tk.END, f" Segment: {a} -> {b}, Dist: {dist:.2f} km, Flow: {avg_flow:.2f}, Time: {time_sec/60:.2f} min\n")
 
-            elif search_choice == "HillClimbing":
-                path, nodes_created = hill_climbing_search(origin, {destination}, edges, coords)
-                if path is None:
-                    self.output_text.insert(tk.END, "[ERROR] No path found with Hill Climbing.\n")
-                    return
-
-            else:
-                raise ValueError("Unsupported search algorithm")
-
-            # Calculate travel time for the path
-            total_time = 0.0  # Use a float for accurate calculations
-            self.output_text.insert(tk.END, "[INFO] Calculating travel times for each segment...\n")
-            for i in range(len(path) - 1):
-                node_a, node_b = path[i], path[i + 1]
-                distance = model.haversine(coords[node_a][1], coords[node_a][0], coords[node_b][1], coords[node_b][0])
-                flow = predicted_flows.get(node_a, 0)
-                travel_time = model.calculate_travel_time(distance, flow)
-                total_time += travel_time
-                self.output_text.insert(tk.END, f"Segment: {node_a} -> {node_b}, Distance: {distance:.2f} km, "
-                                                f"Flow: {flow}, Travel Time: {travel_time:.2f} minutes\n")
-
-            # Convert total time to hours and minutes
-            hours = int(total_time // 60)
-            minutes = round(total_time % 60)  # Use `round` to avoid truncation errors
-
-            # Display the results
-            self.output_text.insert(tk.END, f"\n{search_choice} Path: {path}\n")
-            self.output_text.insert(tk.END, f"Total Travel Time: {hours} hours and {minutes} minutes\n")
-            self.plot_path(path, coords, graph)
+                # Optional: plot each path separately or just the first
+                if idx == 1:
+                    self.plot_path(path, {k: (v["Latitude"], v["Longitude"]) for k, v in scats_data.items()}, graph)
 
         except Exception as e:
-            self.output_text.insert(tk.END, f"[ERROR] {model_choice} execution failed: {e}\n")
+            self.output_text.insert(tk.END, f"[ERROR] {e}\n")
+
 
     def plot_path(self, path, coords, graph):
         fig, ax = plt.subplots()
 
-        # Plot all SCATS nodes
+        # Plot all nodes
         for node, (x, y) in coords.items():
             ax.plot(x, y, marker='o', color='gray', markersize=3)
 
-        # Highlight path
+        # Plot path
         xs = [coords[node][0] for node in path if node in coords]
         ys = [coords[node][1] for node in path if node in coords]
-        ax.plot(xs, ys, marker='o', color='blue', linewidth=2)
-        ax.set_title("Optimal Path")
+        ax.plot(xs, ys, marker='o', color='red', linewidth=2, markersize=5)
+
+        ax.set_title("Route Path")
+        ax.set_xlabel("Longitude")
+        ax.set_ylabel("Latitude")
 
         for widget in self.canvas_frame.winfo_children():
             widget.destroy()
