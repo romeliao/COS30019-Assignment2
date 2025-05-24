@@ -10,18 +10,22 @@ from math import radians, sin, cos, sqrt, atan2
 
 class XGBoostModel:
     def __init__(self, timesteps=96):
+        # Initialize model parameters and scaler
         self.timesteps = timesteps
         self.model = XGBRegressor(n_estimators=100, learning_rate=0.1, max_depth=6)
         self.scaler = MinMaxScaler()
 
     def load_and_prepare_data(self, data_dir):
+        # Load and preprocess training data
         X = pd.read_csv(os.path.join(data_dir, "X_train.csv"))
         y = pd.read_csv(os.path.join(data_dir, "y_train.csv"))
         
+        # Find SCATS column
         scats_col = next((c for c in X.columns if 'scats' in c.lower()), None)
         X = X.rename(columns={scats_col: 'SCATS_Number'})
         scats_numbers = X['SCATS_Number'].copy()
 
+        # Feature engineering for date/time
         if 'Date' in X.columns:
             X['Date'] = pd.to_datetime(X['Date'])
             X['hour'] = X['Date'].dt.hour
@@ -29,14 +33,17 @@ class XGBoostModel:
             X['is_weekend'] = X['day_of_week'].isin([5,6]).astype(int)
             X.drop('Date', axis=1, inplace=True)
 
+        # One-hot encode categorical variables and convert to numpy arrays
         X = pd.get_dummies(X.drop('SCATS_Number', axis=1))
         y = y.mean(axis=1).values  # Reduce to 1D for regression
 
         X = X.astype('float32').values
         y = y.astype('float32')
 
+        # Scale y values
         y_scaled = self.scaler.fit_transform(y.reshape(-1, 1)).flatten()
 
+        # Split into train and test sets
         split = int(0.8 * len(X))
         X_train, X_test = X[:split], X[split:]
         y_train, y_test = y_scaled[:split], y_scaled[split:]
@@ -45,6 +52,7 @@ class XGBoostModel:
         return X_train, y_train, X_test, y_test, scats_test
 
     def train(self, X_train, y_train):
+        # Train the XGBoost model
         self.model.fit(X_train, y_train)
 
     def save_model(self, filepath):
@@ -58,6 +66,7 @@ class XGBoostModel:
         print(f"[INFO] XGBoost model loaded from {filepath}")
 
     def evaluate(self, X_test, y_test, X_train=None, y_train=None):
+        # Evaluate model performance on test (and optionally train) sets
         preds_test = self.model.predict(X_test)
         preds_test_inv = self.scaler.inverse_transform(preds_test.reshape(-1, 1)).flatten()
         y_test_inv = self.scaler.inverse_transform(y_test.reshape(-1, 1)).flatten()
@@ -94,13 +103,14 @@ class XGBoostModel:
         return mse, mae_test
 
     def predict_flows_for_scats(self, scats_sites, X_test, scats_test):
+        # Predict mean flow for each SCATS site in the test set
         flows = {}
         scats_test = np.array(scats_test).astype(str)
         
         for scats in scats_sites:
             mask = scats_test == scats
             if not np.any(mask):
-                flows[scats] = 500
+                flows[scats] = 500  # Default flow if no data
                 continue
 
             X_scats = X_test[mask]
@@ -111,20 +121,24 @@ class XGBoostModel:
         return flows
 
     def flow_to_speed(self, flow):
-            speed = 50 - (flow / 60)  # Simpler linear relationship
-            return min(max(speed, 5), 60)
+        # Convert traffic flow to speed using a simple linear relationship
+        speed = 50 - (flow / 60)  # Simpler linear relationship
+        return min(max(speed, 5), 60)
 
     def calculate_travel_time(self, distance_km, predicted_flow):
+        # Calculate travel time (in seconds) for a given distance and predicted flow
         speed = self.flow_to_speed(predicted_flow)  # km/h
         travel_time_sec = (distance_km / speed) * 3600 + 30  # seconds (includes overhead)
         return travel_time_sec
 
     def print_segment_info(self, origin, dest, distance_km, flow):
+        # Print information about a segment between two SCATS sites
         travel_time_sec = self.calculate_travel_time(distance_km, flow)
         travel_time_min = travel_time_sec / 60
         print(f"Segment: {origin} -> {dest}, Distance: {distance_km:.2f} km, Flow: {flow:.2f}, Time: {travel_time_min:.2f} min")
 
     def print_route_info(self, routes):
+        # Print information about each route and its total travel time
         for i, (path, total_time_sec) in enumerate(routes, 1):
             total_time_min = total_time_sec / 60
             hours = int(total_time_min // 60)
@@ -132,6 +146,7 @@ class XGBoostModel:
             print(f"Route {i}: {' -> '.join(path)} | Time: {hours} hr {minutes} min")
 
     def load_scats_coordinates(self, test_csv_path):
+        # Load SCATS site coordinates from CSV
         df_test = pd.read_csv(test_csv_path)
         scats_data = (
             df_test[["SCATS Number", "NB_LATITUDE", "NB_LONGITUDE"]]
@@ -143,6 +158,7 @@ class XGBoostModel:
         return scats_data
 
     def haversine(self, lat1, lon1, lat2, lon2):
+        # Calculate the great-circle distance between two points on the Earth
         R = 6371
         lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
         dlat = lat2 - lat1
@@ -152,6 +168,7 @@ class XGBoostModel:
         return R * c
 
     def build_scats_graph(self, scats_data, predicted_flows):
+        # Build a graph of SCATS sites with travel time as edge weights
         G = nx.Graph()
         for origin, o_data in scats_data.items():
             for dest, d_data in scats_data.items():
@@ -163,6 +180,7 @@ class XGBoostModel:
         return G
 
     def find_optimal_routes(self, graph, origin_scats, dest_scats, k=3):
+        # Find k shortest routes between two SCATS sites using travel time as weight
         routes = []
         for path in nx.shortest_simple_paths(graph, origin_scats, dest_scats, weight="weight"):
             total_time = sum(graph[path[i]][path[i+1]]['weight'] for i in range(len(path)-1))
